@@ -4336,10 +4336,6 @@ end
 function CommonProceduralSetTargets(state, host, target, node, offset)
 end
 
---- Module property render instructions
---- @type string
-kPropRenderSymbol = ""
-
 --- Vertex attribute formats
 --- @type number
 kCommonMeshUByte4Norm = 0
@@ -4376,6 +4372,14 @@ kCommonMeshByte2 = 0
 --- @type number
 kCommonMeshFloat2 = 0
 
+--- Chore agent properties property set meta instance
+--- @type string
+kCommonChoreAgentKeyProperties = ""
+
+--- Common class types
+--- @type number
+kCommonClassAnimation = 0
+
 --- Vertex attribute formats
 --- @type number
 kCommonMeshFloat3 = 0
@@ -4387,10 +4391,6 @@ kCommonMeshByte4 = 0
 --- Vertex attribute formats
 --- @type number
 kCommonMeshFloat4 = 0
-
---- Mesh compressed format involving unsigned approximated normed normal vector3 values
---- @type number
-kCommonMeshCompressedFormatUNormNormalAprox = 0
 
 --- Vertex attribute formats
 --- @type number
@@ -4448,10 +4448,6 @@ kPropRenderByte = ""
 --- @type number
 kCommonMeshUByte4 = 0
 
---- BGR'X' resolvable texture format. 'X' is unused and set to opaque.
---- @type number
-kCommonTextureResolvableFormatBGRX = 0
-
 --- Surface formats
 --- @type number
 kCommonTextureFormatBGRA8 = 0
@@ -4459,6 +4455,10 @@ kCommonTextureFormatBGRA8 = 0
 --- Vertex attribute formats
 --- @type number
 kCommonMeshUByte2Norm = 0
+
+--- Common class types
+--- @type number
+kCommonClassTexture = 0
 
 --- Vertex attribute formats
 --- @type number
@@ -4536,6 +4536,10 @@ kCommonMeshAttributeUVDiffuse = 0
 --- @type string
 kPropRenderUnsignedInt64 = ""
 
+--- Common class types
+--- @type number
+kCommonClassScene = 0
+
 --- Vertex attributes
 --- @type number
 kCommonMeshAttributeUVLightMap = 0
@@ -4548,21 +4552,21 @@ kCommonMeshAttributeUnknown = 0
 --- @type string
 kPropRenderVector4 = ""
 
---- Animation value types
+--- Mesh compressed format involving signed normed normal vector3 values
 --- @type number
-kAnimationValueTypeTime = 0
+kCommonMeshCompressedFormatSNormNormal = 0
 
---- Module property render instructions
---- @type string
-kPropRenderInt = ""
-
---- Module property render instructions
---- @type string
-kPropRenderUnsignedInt = ""
-
---- Mesh compressed format involving unsigned normed UV values
+--- Common class types
 --- @type number
-kCommonMeshCompressedFormatUNormUV = 0
+kCommonClassMesh = 0
+
+--- Common class types
+--- @type number
+kCommonClassInputMapper = 0
+
+--- Common class types
+--- @type number
+kCommonClassSkeleton = 0
 
 --- Animation value types
 --- @type number
@@ -4571,6 +4575,30 @@ kAnimationValueTypeTextureShearOriginU = 0
 --- Module property render instructions
 --- @type string
 kPropRenderUnsignedShort = ""
+
+--- Common class types
+--- @type number
+kCommonClassChore = 0
+
+--- Common class types
+--- @type number
+kCommonClassProceduralLookAt = 0
+
+--- Animation value types
+--- @type number
+kAnimationValueTypeTime = 0
+
+--- Module property render instructions
+--- @type string
+kPropRenderInt = ""
+
+--- Common class types
+--- @type number
+kCommonClassPropertySet = 0
+
+--- Module property render instructions
+--- @type string
+kPropRenderUnsignedInt = ""
 
 --- Module property render instructions
 --- @type string
@@ -4596,9 +4624,25 @@ kPropRenderEnum = ""
 --- @type string
 kPropRenderPolar = ""
 
---- Mesh compressed format involving signed normed normal vector3 values
+--- Module property render instructions
+--- @type string
+kPropRenderSymbol = ""
+
+--- Module property render instructions
+--- @type string
+kPropRenderAnimOrChore = ""
+
+--- Mesh compressed format involving unsigned normed UV values
 --- @type number
-kCommonMeshCompressedFormatSNormNormal = 0
+kCommonMeshCompressedFormatUNormUV = 0
+
+--- Mesh compressed format involving unsigned approximated normed normal vector3 values
+--- @type number
+kCommonMeshCompressedFormatUNormNormalAprox = 0
+
+--- BGR'X' resolvable texture format. 'X' is unused and set to opaque.
+--- @type number
+kCommonTextureResolvableFormatBGRX = 0
 
 --- Trigger when an event begins
 --- @type number
@@ -4831,10 +4875,6 @@ kCommonChoreResourceBlockKeyLooping = ""
 --- Agent name string
 --- @type string
 kCommonChoreAgentKeyName = ""
-
---- Chore agent properties property set meta instance
---- @type string
-kCommonChoreAgentKeyProperties = ""
 
 --- Table of indices (values, keys ignored) or meta collection of 32-bit integers.
 --- @type string

@@ -1,6 +1,7 @@
 require("ToolLibrary/Game/Common/LuaPropertySet.lua")
 require("ToolLibrary/Game/VersionCRC.lua")
 
+require("ToolLibrary/Game/Common/LegacyHandle.lua")
 require("ToolLibrary/Game/BN100/D3DTexture.lua")
 require("ToolLibrary/Game/BN100/D3DMesh.lua")
 require("ToolLibrary/Game/Common/Scene.lua")
@@ -11,6 +12,14 @@ require("ToolLibrary/Game/Common/Animation.lua")
 require("ToolLibrary/Game/Common/Chore.lua")
 require("ToolLibrary/Game/Common/InputMapper.lua")
 require("ToolLibrary/Game/Common/WalkBoxes.lua")
+
+function BN100_RegisterModuleUI()
+	ModuleCollector_RegisterUI(1)
+end
+
+function BN100_ProceduralLookAt_OnAttach(props)
+	ProceduralLookAt_OnAttach(props, 0) -- version 0
+end
 
 function Bone1_GetGameDescriptor()
 	local bone1              = { Key = {} }
@@ -29,10 +38,10 @@ function Bone1_GetGameDescriptor()
 	bone1.Key["PC/v2.0_Main"]  		= "82A3898889D89FB7D3D8DAC082D7C2C1CE8DA1EA99B7A5DDCA52E58769C8A46EBB9997BBCDD79AD8DAD0C8DEA69CB7D2B9D68275DFE0A4" -- used by Telltale Explorer
 	bone1.Key["PC/v2.0_Late"] 		= "81D89B9955E26573B4DBE3C963DB8587AB999BDC6EEB689FA790DDBA6AE29364A1B4A0B492D96B9CB7E3E6D168A8849F87D29498A1E871" -- used by ttarchext
 	bone1.Key["PC/Demo_2005"] 		= "34246C3343726C7564326553576945324F6163396C7574786C3732522D2A384931714F346F616A6C5F24652369616370342A75466C6530" -- CSI3 again. same early copy
-	bone1.Platforms          = "PC;MacOS"
-	bone1.Vendors            = "Demo_2005;v2.0_Main;v2.0_Late"
-	bone1.DefaultVendor = "v2.0_Main"
-	bone1.CommonSelector = "Bone1_CommonSelector"
+	bone1.Platforms         = "PC;MacOS"
+	bone1.Vendors           = "Demo_2005;v2.0_Main;v2.0_Late"
+	bone1.DefaultVendor 	= "v2.0_Main"
+	bone1.CommonSelector 	= "Bone1_CommonSelector" -- multiple vendors so we need a common class selector
 	MetaPushGameCapability(bone1, kGameCapSeparateAnimationTransform)
 	MetaPushGameCapability(bone1, kGameCapUsesLenc)
 	MetaPushGameCapability(bone1, kGameCapRawClassNames)
@@ -40,13 +49,13 @@ function Bone1_GetGameDescriptor()
 	MetaPushExecutableHash(bone1, "65776A64C0D6236B", "PC", "v2.0_Main")
 	MetaPushExecutableHash(bone1, "6D0252245BC3FBA5", "PC", "v2.0_Late")
 	MetaPushExecutableHash(bone1, "2EF5F1B1EC0818C4", "PC", "v2.0_Late")
-	MetaPushExecutableHash(bone1, "DEBD66F6A23807E0", "MacOS", "")
+	MetaPushExecutableHash(bone1, "DEBD66F6A23807E0", "MacOS", "Demo_2005")
 	return bone1
 end
 
--- Common selectors map the snapshot for a given class to its version number (or degeneracy if you will)
+-- Common selectors map the snapshot for a given class to its version number ie degeneracy
 function Bone1_CommonSelector(platform, vendor, commonClass)
-	return 0 -- use default class. check in future. conditions only register whats needed  so only specific use cases
+	return 0 -- use default class. check in future. conditions only register whats needed so maybe only very specific use cases
 end
 
 -- registers two types: one with baseclass_containerinterface and one without (vers exists for both). pass in k and v table (or k being SArray N)
@@ -81,18 +90,6 @@ function RegisterBoneCollection(containerInterfaceTbl, name, k, v)
 	return DoRegisterBoneCollection(containerInterfaceTbl, name, k, v, 0)
 end
 
--- registers Handle<T>. ensure the name is correct.
-function RegisterBoneHandle(name)
-	local MetaHandle = { VersionIndex = 0 }
-	MetaHandle.Name = name
-	MetaHandle.Flags = kMetaClassIntrinsic -- not in version headers ? idk why
-	MetaHandle.Members = {}
-	-- below member doesnt exist in game (has custom serialiser) but lets just store it as a di
-	MetaHandle.Members[1] = { Name = "mHandle", Class = kMetaClassSymbol, Flags = kMetaMemberVersionDisable } -- serialise yes, no version hash though.
-	MetaRegisterClass(MetaHandle)
-	return MetaHandle
-end
-
 function RegisterBoneScriptEnum(typeName)
 	local scriptEnum = NewClass("ScriptEnum:" .. typeName, 0)
 	scriptEnum.Members[1] = NewMember("mCurValue", kMetaClassString, 0)
@@ -108,10 +105,11 @@ function RegisterBoneANMValue(base, typeName)
 end
 
 function RegisterBoneKeyframedValue(ci, typedInterface, typeName, typeTable, incTangentMode)
+	incTangentMode = incTangentMode and 1 or 0
 	local sample = NewClass("class KeyframedValue<" .. typeName .. ">::Sample", 0)
 	sample.Members[1] = NewMember("mTime", kMetaFloat)
 	sample.Members[2] = NewMember("mbInterpolateToNextKey", kMetaBool)
-	if incTangentMode == 1 then
+	if incTangentMode then
 		sample.Members[3] = NewMember("mTangentMode", kMetaInt)
 	end
 	sample.Members[incTangentMode + 3] = NewMember("mValue", typeTable)
@@ -167,21 +165,21 @@ function RegisterBone100(vendor, platform)
 	MetaRegisterClass(MetaCI)
 
 	-- ALL HANDLE TYPES
-	local hAnim = RegisterBoneHandle("class Handle<class Animation>")
-	local hChore = RegisterBoneHandle("class Handle<class Chore>")
-	local hMesh = RegisterBoneHandle("class Handle<class D3DMesh>")
-	local hTexture = RegisterBoneHandle("class Handle<class D3DTexture>")
-	local hDlgResource = RegisterBoneHandle("class Handle<class DialogResource>")
-	local hProp = RegisterBoneHandle("class Handle<class PropertySet>")
-	local hAud = RegisterBoneHandle("class Handle<class AudioData")
-	local hScene = RegisterBoneHandle("class Handle<class Scene>")
-	local hSkeleton = RegisterBoneHandle("class Handle<class Skeleton>")
-	local hStyle = RegisterBoneHandle("class Handle<class StyleGuide>")
-	local hVoiceData = RegisterBoneHandle("class Handle<class VoiceData>")
-	local hWalkBoxes = RegisterBoneHandle("class Handle<class WalkBoxes>")
-	local hFont = RegisterBoneHandle("class Handle<class Font>")
-	local hAnimChore = RegisterBoneHandle("class Handle<class AnimOrChore>")
-	local hBase = RegisterBoneHandle("class HandleBase")
+	local hAnim = RegisterLegacyHandle("class Handle<class Animation>")
+	local hChore = RegisterLegacyHandle("class Handle<class Chore>")
+	local hMesh = RegisterLegacyHandle("class Handle<class D3DMesh>")
+	local hTexture = RegisterLegacyHandle("class Handle<class D3DTexture>")
+	local hDlgResource = RegisterLegacyHandle("class Handle<class DialogResource>")
+	local hProp = RegisterLegacyHandle("class Handle<class PropertySet>")
+	local hAud = RegisterLegacyHandle("class Handle<class AudioData")
+	local hScene = RegisterLegacyHandle("class Handle<class Scene>")
+	local hSkeleton = RegisterLegacyHandle("class Handle<class Skeleton>")
+	local hStyle = RegisterLegacyHandle("class Handle<class StyleGuide>")
+	local hVoiceData = RegisterLegacyHandle("class Handle<class VoiceData>")
+	local hWalkBoxes = RegisterLegacyHandle("class Handle<class WalkBoxes>")
+	local hFont = RegisterLegacyHandle("class Handle<class Font>")
+	local hAnimChore = RegisterLegacyHandle("class Handle<class AnimOrChore>")
+	local hBase = RegisterLegacyHandle("class HandleBase")
 
 	-- array of prop file names (for parent list in prop). only list in this game, rest are arrays etc
 	local MetaHandleArrayProp = { VersionIndex = 0 }
@@ -215,8 +213,10 @@ function RegisterBone100(vendor, platform)
 	}
 	MetaRegisterCollection(setString, nil, kMetaClassString)
 
+	local updatedEngine = vendor == "v2.0_Main" or vendor == "v2.0_Late"
+
 	-- .AAM FILES
-	if vendor == "v2.0_Main" or vendor == "v2.0_Late" then
+	if updatedEngine then
 		local aam = { VersionIndex = 0 }
 		aam.Extension = "aam"
 		aam.Name = "class ActorAgentMapper"
@@ -246,9 +246,6 @@ function RegisterBone100(vendor, platform)
 	bb.Members[1] = NewMember("mMin", MetaVec3, 0)
 	bb.Members[2] = NewMember("mMax", MetaVec3, 0)
 	MetaRegisterClass(bb)
-
-	local updatedEngine = vendor == "v2.0_Main" or vendor == "v2.0_Late"
-	if updatedEngine then updatedEngine = 1 else updatedEngine = 0 end
 
 	local enumNavMode = NewClass("enum NavCam::Mode", 0)
 	enumNavMode.Flags = kMetaClassNonBlocked + kMetaClassEnumWrapper -- this is a wrapper. needed so versions match, just remaps int
@@ -297,7 +294,7 @@ function RegisterBone100(vendor, platform)
 	MetaRegisterClass(lightType)
 
 	local textAlign = NewClass("class TextAlignmentType", 0)
-	-- 	textAlign.Flags = kMetaClassEnumWrapper  ? maybe
+	-- textAlign.Flags = kMetaClassEnumWrapper  ? maybe
 	textAlign.Members[1] = NewMember("mAlignmentType", kMetaInt, 0)
 	MetaRegisterClass(textAlign)
 
@@ -378,7 +375,7 @@ function RegisterBone100(vendor, platform)
 	actingPalette1.Members[1] = NewMember("mName", kMetaClassString)
 	actingPalette1.Members[2] = NewMember("mPriority", kMetaInt)
 	actingPalette1.Members[3] = NewMember("mbActiveByDefault", kMetaBool)
-	if updatedEngine == 1 then
+	if updatedEngine then
 		actingPalette1.Members[4] = NewMember("mActiveDuring", enumActiveDuring)
 		actingPalette1.Members[5] = NewMember("mAnimFadeInOut", kMetaFloat)
 		actingPalette1.Members[6] = NewMember("mAnimPreDelay", kMetaFloat)
@@ -402,7 +399,7 @@ function RegisterBone100(vendor, platform)
 	actingPaletteClass.Members[2] = NewMember("mKeywords", arrayClassString)
 	actingPaletteClass.Members[3] = NewMember("mPalettes", arrayPalette)
 
-	if updatedEngine == 1 then
+	if updatedEngine then
 		actingPaletteClass.Members[4] = NewMember("mAlternateNames", arrayClassString)
 		actingPaletteClass.Members[5] = NewMember("mIdle", animOrChore)
 	end
@@ -555,8 +552,6 @@ function RegisterBone100(vendor, platform)
 
 	local arrayRuleInfo, _ = RegisterBoneCollection(MetaCI, "__ArrayRuleAgents", nil, ruleInf)
 
-	local arrayLogicGroup = RegisterBoneCollection(MetaCol, "class DCArray<class LogicGroup>", nil, "class LogicGroup")
-
 	local logicItem = nil
 	local mapLogicItem = nil
 	if updatedEngine then
@@ -570,7 +565,9 @@ function RegisterBone100(vendor, platform)
 	end
 
 	local logicGroup = nil 
+	local arrayLogicGroup = nil
 	if updatedEngine then 
+		arrayLogicGroup = RegisterBoneCollection(MetaCol, "class DCArray<class LogicGroup>", nil,"class LogicGroup")
 		logicGroup = NewClass("class LogicGroup", 0)
 		logicGroup.Members[1] = NewMember("mOperator", kMetaInt, 0)
 		logicGroup.Members[2] = NewMember("mItems", mapLogicItem, 0)
@@ -680,7 +677,7 @@ function RegisterBone100(vendor, platform)
 	local sceneAgent = NewClass("class Scene::AgentInfo", 0) -- scene agent information. the are like 5 other old versions, won't bother with them, not used.
 	sceneAgent.Members[1] = NewMember("mAgentName", kMetaClassString)
 
-	if vendor == "v2.0_Main" or vendor == "v2.0_Late" then
+	if updatedEngine then
 		sceneAgent.Members[2] = NewMember("mAgentSceneProps", prop)
 	else
 		sceneAgent.Members[2] = NewMember("mStartPos", MetaVec3)
@@ -698,15 +695,13 @@ function RegisterBone100(vendor, platform)
 
 	local arrayAgents, _ = RegisterBoneCollection(MetaCI, "class DCArray<class Scene::AgentInfo>", nil, sceneAgent)
 
-	local scene = nil
-
 	local scene = NewClass("class Scene", 0)
 	scene.Extension = "scene"
 	scene.Serialiser = "SerialiseScene0"
 	scene.Members[1] = NewMember("mbHidden", kMetaBool)
 	scene.Members[2] = NewMember("mName", kMetaClassString)
 
-	if vendor == "v2.0_Main" or vendor == "v2.0_Late" then
+	if updatedEngine then
 		local arrayHandleLockScenes, _ = RegisterBoneCollection(MetaCI, "class DCArray<class HandleLock<class Scene> >", nil, hScene)
 		scene.Members[3] = NewMember("mReferencedScenes", arrayHandleLockScenes)
 		scene.Members[4] = NewMember("_mAgents", arrayAgents, kMetaMemberVersionDisable + kMetaMemberSerialiseDisable)
@@ -824,7 +819,7 @@ function RegisterBone100(vendor, platform)
 		choreBlock)
 
 	local choreResource
-	if vendor == "v2.0_Main" or vendor == "v2.0_Late" then
+	if updatedEngine then
 		choreResource = NewClass("class ChoreResource", 0)
 		choreResource.Serialiser = "SerialiseChoreResource0"
 		choreResource.Flags = kMetaClassAttachable
@@ -874,9 +869,10 @@ function RegisterBone100(vendor, platform)
 	local arrayChoreAgent, _ = RegisterBoneCollection(MetaCI, "class DCArray<class ChoreAgent>", nil, choreAgent)
 	local arrayChoreResource, _ = RegisterBoneCollection(MetaCI, "class DCArray<class ChoreResource>", nil, choreResource)
 
-	if vendor == "v2.0_Main" or vendor == "v2.0_Late" then
+	if updatedEngine then
 		local chore = NewClass("class Chore", 0)
 		chore.Extension = "chore"
+		chore.Normaliser = "NormaliseChore0"
 		chore.Serialiser = "SerialiseChore0"
 		chore.Members[1] = NewMember("mName", kMetaClassString)
 		chore.Members[2] = NewMember("mbResetNavCamsOnExit", kMetaBool)
@@ -896,6 +892,7 @@ function RegisterBone100(vendor, platform)
 		local chore = NewClass("class Chore", 0)
 		chore.Extension = "chore"
 		chore.Serialiser = "SerialiseChore0"
+		chore.Normaliser = "NormaliseChore0"
 		chore.Members[1] = NewMember("mName", kMetaClassString)
 		chore.Members[2] = NewMember("mbResetNavCamsOnExit", kMetaBool)
 		chore.Members[3] = NewMember("mLength", kMetaFloat)
@@ -915,7 +912,7 @@ function RegisterBone100(vendor, platform)
 	MetaAssociateFolderExtension("BN100", "*.chore", "Chores/")
 	MetaAssociateFolderExtension("BN100", "dlg_*.chore", "Chores/Dialog/")
 
-	local mesh = RegisterBoneD3DMesh(platform, vendor, bb, hTexture, arrayDCInt, MetaCol, MetaCI, updatedEngine ~= 0)
+	local mesh = RegisterBoneD3DMesh(platform, vendor, bb, hTexture, arrayDCInt, MetaCol, MetaCI, updatedEngine)
 
 	local tex = RegisterBoneD3DTexture(vendor, platform, updatedEngine)
 
@@ -1108,6 +1105,8 @@ function RegisterBone100(vendor, platform)
 	RegisterBoneCollection(MetaCI, "class DCArray<class Handle<class AudioData> >", nil, hAud)
 	RegisterBoneCollection(MetaCI, "class Map<class String,class String,struct std::less<class String> >",
 		kMetaClassString, kMetaClassString)
+
+	--MetaDumpVersions()
 		
 	return true
 end

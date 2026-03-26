@@ -66,6 +66,11 @@ U32 luaRequireOverride(LuaManager& man)
     return 0;
 }
 
+void LuaManager::PrintStackTrace()
+{
+    _Adapter->PrintStackTrace();
+}
+
 void LuaManager::Initialise(LuaVersion Vers)
 {
     TTE_ASSERT(_Version == LuaVersion::LUA_NONE && Vers != LuaVersion::LUA_NONE, "Cannot re-initialise lua manager / version is invalid");

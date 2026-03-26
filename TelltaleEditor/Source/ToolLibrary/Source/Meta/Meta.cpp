@@ -163,7 +163,7 @@ namespace Meta {
             LVM.PushLString(snapshot.Vendor);
             LVM.PushInteger((I32)clz);
             LVM.CallFunction(3, 1, true);
-            if(LVM.Type(1) != LuaType::NUMBER)
+            if(LVM.Type(-1) != LuaType::NUMBER)
             {
                 TTE_ASSERT(false, "Cannot select class version at %s: the function failed or did not return version number!", collectorName.c_str());
                 return 0; // FAIL

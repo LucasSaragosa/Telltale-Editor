@@ -92,10 +92,20 @@ void Procedural_LookAt::Attach(const Ptr<Chore>& pChore, ChoreResource& resource
 
 void Procedural_LookAt::AddToChore(const Ptr<Chore>& pChore, ChoreResource& resource)
 {
+    TTE_ASSERT(_LookAtProperties, "Properties must be attached before adding to chore!");
     // no time
     if(!resource.ControlAnimation->HasValue("contribution"))
     {
         resource.ControlAnimation->GetAnimatedValues().push_back(TTE_NEW_PTR(KeyframedValue<Float>, MEMORY_TAG_ANIMATION_DATA, "contribution"));
+    }
+
+    // call lua spec on attach
+    LuaManager& LVM = GetToolContext()->GetLibraryLVM();
+    if(GetToolContext()->PushCachedLuaProcedure("ProceduralLookAt_OnAttach"))
+    {
+        // push proc props
+        _LookAtProperties.PushWeakScriptRef(LVM, {});
+        LVM.CallFunction(1, 0, false);
     }
 }
 

@@ -372,7 +372,17 @@ void RegistryDirectory_System::RefreshResources()
     _LastLocatedResource.clear();
 }
 
+Bool RegistryDirectory_System::IsEmpty()
+{
+    return fs::is_empty(_Path);
+}
+
 // TTARCH1 DIRECTORY
+
+Bool RegistryDirectory_TTArchive::IsEmpty()
+{
+    return _Archive._Files.empty();
+}
 
 Bool RegistryDirectory_TTArchive::UpdateArchiveInternal(const String& resourceName, Ptr<ResourceLocation>& location, std::unique_lock<std::recursive_mutex>& lck)
 {
@@ -631,11 +641,6 @@ Bool RegistryDirectory_GamePack2::HasResource(const Symbol& resourceName, const 
     return _LastLocatedResourceStatus;
 }
 
-String RegistryDirectory_ISO9660::GetResourceName(const Symbol& resource)
-{
-    return HasResource(resource, nullptr) ? _LastLocatedResource : "";
-}
-
 Bool RegistryDirectory_GamePack2::DeleteResource(const Symbol& resource)
 {
     _Pack.DeleteFile(resource);
@@ -669,6 +674,23 @@ void RegistryDirectory_GamePack2::RefreshResources()
 {
     _LastLocatedResource.clear();
     _LastLocatedResourceStatus = false;
+}
+
+Bool RegistryDirectory_GamePack2::IsEmpty()
+{
+    return _Pack._Files.empty();
+}
+
+Bool RegistryDirectory_GamePack2::GetResources(std::vector<std::pair<Symbol, Ptr<ResourceLocation>>>& resources,
+    Ptr<ResourceLocation>& self, const StringMask* optionalMask)
+{
+    std::set<String> files{};
+    _Pack.GetFiles(files);
+
+    for (auto& f : files)
+        resources.push_back(std::make_pair(Symbol(f), self));
+
+    return true;
 }
 
 // ===== PKG
@@ -786,6 +808,15 @@ Bool RegistryDirectory_PlaystationPKG::GetResources(std::vector<std::pair<Symbol
     return true;
 }
 
+Bool RegistryDirectory_PlaystationPKG::IsEmpty()
+{
+    for(const auto& entry : _PKG._Entries)
+    {
+        if (entry.Type == PlaystationPKG::EntryType::REGULAR_FILE) return false;
+    }
+    return false;
+}
+
 // ISO
 
 Ptr<RegistryDirectory> RegistryDirectory_ISO9660::OpenDirectory(const String& name)
@@ -793,19 +824,10 @@ Ptr<RegistryDirectory> RegistryDirectory_ISO9660::OpenDirectory(const String& na
     return {};
 }
 
-Bool RegistryDirectory_GamePack2::GetResources(std::vector<std::pair<Symbol, Ptr<ResourceLocation>>>& resources,
-                                               Ptr<ResourceLocation>& self, const StringMask* optionalMask)
+String RegistryDirectory_ISO9660::GetResourceName(const Symbol& resource)
 {
-    std::set<String> files{};
-    _Pack.GetFiles(files);
-    
-    for(auto& f: files)
-        resources.push_back(std::make_pair(Symbol(f), self));
-    
-    return true;
+    return HasResource(resource, nullptr) ? _LastLocatedResource : "";
 }
-
-// ISO DIRECTORY
 
 Bool RegistryDirectory_ISO9660::UpdateArchiveInternal(const String& resourceName, Ptr<ResourceLocation>& location, std::unique_lock<std::recursive_mutex>& lck)
 {
@@ -896,6 +918,11 @@ void RegistryDirectory_ISO9660::RefreshResources()
     _LastLocatedResourceStatus = false;
 }
 
+Bool RegistryDirectory_ISO9660::IsEmpty()
+{
+    return false; // ISO thats empty is very unlikely anyway
+}
+
 Bool RegistryDirectory_ISO9660::GetResources(std::vector<std::pair<Symbol, Ptr<ResourceLocation>>>& resources,
                                              Ptr<ResourceLocation>& self, const StringMask* optionalMask)
 {
@@ -925,6 +952,11 @@ Bool RegistryDirectory_TTArchive2::UpdateArchiveInternal(const String& resourceN
 Ptr<RegistryDirectory> RegistryDirectory_TTArchive2::OpenDirectory(const String& name)
 {
     return {};
+}
+
+Bool RegistryDirectory_TTArchive2::IsEmpty()
+{
+    return _Archive._Files.empty();
 }
 
 Bool RegistryDirectory_TTArchive2::GetResourceNames(std::set<String>& resources, const StringMask* optionalMask)
@@ -1126,6 +1158,16 @@ Bool ResourceLogicalLocation::HasResource(const Symbol &name)
     for(auto& set : SetStack)
     {
         if(set.Resolved && set.Resolved->HasResource(name))
+            return true;
+    }
+    return false;
+}
+
+Bool ResourceLogicalLocation::IsEmpty()
+{
+    for (auto& set : SetStack)
+    {
+        if (set.Resolved && set.Resolved->IsEmpty())
             return true;
     }
     return false;
@@ -2006,6 +2048,19 @@ void ResourceRegistry::GetLocationResourceNames(const Symbol &location, std::set
     }
 }
 
+Bool ResourceRegistry::IsLocationEmpty(const Symbol& location)
+{
+    SCOPE_LOCK();
+    for (const auto& l : _Locations)
+    {
+        if (location == l->Name)
+        {
+            return l->IsEmpty();
+        }
+    }
+    return true;
+}
+
 Bool ResourceRegistry::ResourceLocationExists(const Symbol &name)
 {
     SCOPE_LOCK();
@@ -2540,8 +2595,7 @@ Bool ResourceRegistry::_SetupHandleResourceLoad(HandleObjectInfo &hoi, std::uniq
                 name = SymbolToHexString(hoi._ResourceName);
             if(_ErrorFiles.find(name) == _ErrorFiles.end())
             {
-                TTE_LOG("WARNING: The resource %s was not found in the "
-                        "resource registry so cannot be loaded! Empty placeholder will be used.", name.c_str());
+                TTE_LOG("WARNING: The resource %s was not found in the resource registry.", name.c_str());
                 _ErrorFiles.insert(name);
             }
             return false;
@@ -3264,18 +3318,43 @@ Ptr<ResourceRegistry> Handleable::GetRegistry() const
 void Meta::_Impl::_Coersion<Handle<Placeholder>>::Extract(Handle<Placeholder>& out, ClassInstance& inst)
 {
     ClassInstance mem = GetMember(inst, "mHandle", true); // mHandle must exist (It should in all games).
-    TTE_ASSERT(Is(mem, "Symbol") || Is(mem, "class Symbol"), "Handle<T>::mHandle is not a Symbol");
-    Symbol val{};
-    Meta::ExtractCoercableInstance(val, mem);
-    out.SetObject(val);
+    Bool isSymbol = Is(mem, "Symbol") || Is(mem, "class Symbol");
+    Bool isString = Is(mem, "String") || Is(mem, "class String");
+    TTE_ASSERT(isSymbol || isString, "Handle<T>::mHandle is not a Symbol or String");
+    if(isString)
+    {
+        String val{};
+        Meta::ExtractCoercableInstance(val, mem);
+        out.SetObject(val);
+    }
+    else
+    {
+        Symbol val{};
+        Meta::ExtractCoercableInstance(val, mem);
+        out.SetObject(val);
+    }
 }
 
 void Meta::_Impl::_Coersion<Handle<Placeholder>>::Import(const Handle<Placeholder>& in, ClassInstance& inst)
 {
     ClassInstance mem = GetMember(inst, "mHandle", true);
-    TTE_ASSERT(Is(mem, "Symbol") || Is(mem, "class Symbol"), "Handle<T>::mHandle is not a Symbol");
-    Symbol val = in.GetObject();
-    Meta::ImportCoercableInstance(val, mem);
+    Bool isSymbol = Is(mem, "Symbol") || Is(mem, "class Symbol");
+    Bool isString = Is(mem, "String") || Is(mem, "class String");
+    TTE_ASSERT(isSymbol || isString, "Handle<T>::mHandle is not a Symbol or String");
+    if(isSymbol)
+    {
+        Symbol val = in.GetObject();
+        Meta::ImportCoercableInstance(val, mem);
+    }
+    else
+    {
+        String val = in.GetObjectResolved();
+        if(in.GetObject().GetCRC64() != 0 && val.empty())
+        {
+            TTE_LOG("WARNING: When importing Handle<T> the file name could not be resolved, the hash is unknown: %llX", in.GetObject().GetCRC64());
+        }
+        Meta::ImportCoercableInstance(val, mem);
+    }
 }
 
 void Meta::_Impl::_Coersion<Handle<Placeholder>>::ImportLua(const Handle<Placeholder>& in, LuaManager& man)

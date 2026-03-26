@@ -232,7 +232,14 @@ Bool EditorUI::Render()
         if(preloadOffset >= it->PreloadBatch)
         {
             Ptr<UIResourceEditorBase> ui = it->Callback(*it, *this, GetApplication().GetRegistry());
-            DispatchEditorImmediate(ui);
+            if(ui->Expired())
+            {
+                TTE_LOG("WARNING: Could not preload editable resource '%s' because the resource has expired", it->Resource.c_str());
+            }
+            else
+            {
+                DispatchEditorImmediate(ui);
+            }
             it = _AwaitingLoads.erase(it);
         }
         else
@@ -344,20 +351,24 @@ void FileView::_Gather(Ptr<ResourceRegistry> pRegistry, std::vector<String>& ent
         pRegistry->GetResourceLocationNames(entries);
         for (auto it = entries.begin(); it != entries.end(); it++)
         {
-            String orig = *it;
-            if(StringEndsWith(*it, "/"))
-                *it = it->substr(0, it->length() - 1);
-            StringReplace(*it, "<", "");
-            StringReplace(*it, ">", "");
-            if(orig != *it)
-                _StrippedToLocation[*it] = orig;
+            if (pRegistry->IsLocationEmpty(*it))
+                *it = ""; // mark similar to main to ignore in view if empty
+            else
+            {
+                String orig = *it;
+                if (StringEndsWith(*it, "/"))
+                    *it = it->substr(0, it->length() - 1);
+                StringReplace(*it, "<", "");
+                StringReplace(*it, ">", "");
+                if (orig != *it)
+                    _StrippedToLocation[*it] = orig;
+            }
         }
         for (auto it = entries.begin(); it != entries.end(); it++)
         {
             if (it->empty())
             {
-                entries.erase(it); // remove main
-                break;
+                it = entries.erase(it); // remove main and empty
             }
         }
     }
@@ -857,6 +868,11 @@ namespace PropertyRenderFunctions
         return;
     }
 
+    void RenderAnimOrChore(EditorUI& ui, const PropertyVisualAdapter& adapter, const Meta::ClassInstance& datum)
+    {
+        ; // dummy function impl is in Render()
+    }
+
     void RenderSymbol(EditorUI& ui, const PropertyVisualAdapter& adapter, const Meta::ClassInstance& datum)
     {
         if((adapter.Flags & PropertyVisualAdapter::NO_REPOSITION) == 0)
@@ -955,7 +971,7 @@ namespace PropertyRenderFunctions
         const float item_width = 55.0f;
         const ImVec2 label_size = ImGui::CalcTextSize("X");
         char Txt[8]{ 'X', 0, 'Y', 0, 'Z', 0, 'W', 0 };
-        if(bCol)
+        if (bCol)
         {
             Txt[0] = 'R';
             Txt[2] = 'G';
@@ -1007,7 +1023,7 @@ namespace PropertyRenderFunctions
             }
             ImGui::PopItemWidth();
 
-            if (i < n-1)
+            if (i < n - 1)
             {
                 ImGui::SameLine();
                 ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 2.0f); // gap between groups
@@ -1213,64 +1229,11 @@ void luaModuleUI(LuaFunctionCollection& Col)
         " if the type is a handle and a string is required if mHandle is a string in the Handle class specifying the file name. There can be as many this.sub.paths.as.needed .");
 
     const PropertyRenderInstruction* Instruction = PropertyRenderInstructions;
-    while(Instruction->Name)
+    while (Instruction->Name)
     {
         PUSH_GLOBAL_S(Col, Instruction->ConstantName, Instruction->Name, "Module property render instructions");
         Instruction++;
     }
-}
-
-static void _DoHandleRender(EditorUI& editor, String* handleFile, Symbol* sym, U32 clazz)
-{
-    const Meta::Class& c = Meta::GetClass(clazz);
-    if(sym && sym->GetCRC64() && handleFile->empty())
-    {
-        *handleFile = editor.GetApplication().GetRegistry()->FindResourceName(*sym);
-        if(handleFile->empty())
-        {
-            *handleFile = "<!!>"; // not found placeholder
-        }
-    }
-    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(60, 60, 60, 255));
-    const char* textShow = *handleFile == "<!!>" ? "<Unknown>" : *handleFile == "" ? editor.GetApplication().GetLanguageText("misc.empty").c_str() : handleFile->c_str();
-    ImGui::InputText("##inpHandle", (char*)textShow, strlen(textShow)+1, ImGuiInputTextFlags_ReadOnly);
-    if(ImGui::BeginDragDropTarget())
-    {
-        const ImGuiPayload* pl = ImGui::AcceptDragDropPayload("TT_ASSET");
-        if(pl)
-        {
-            String nHandle = (CString)pl->Data;
-            if(StringEndsWith(nHandle, c.Extension))
-            {
-                handleFile->assign(nHandle);
-                if(sym)
-                    *sym = Symbol(nHandle);
-                // on change
-            }
-            else
-            {
-                PlatformMessageBoxAndWait(editor.GetApplication().GetLanguageText("misc.invalid_type"), editor.GetApplication().GetLanguageText("misc.only_xxx") + " " + c.Extension);
-            }
-        }
-        ImGui::EndDragDropTarget();
-    }
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::BeginTooltip();
-        ImGui::SetTooltip(editor.GetApplication().GetLanguageText("misc.drag_here").c_str(), c.Extension.c_str());
-        ImGui::EndTooltip();
-    }
-    ImGui::PopStyleColor();
-    ImGui::PushFont(ImGui::GetFont(), 11.0f);
-    ImGui::SameLine();
-    if(ImGui::Button(editor.GetApplication().GetLanguageText("misc.reset_lower").c_str()) && !handleFile->empty() && *handleFile != "<!!>")
-    {
-        *handleFile = "";
-        if(sym)
-            *sym = Symbol();
-        // on change
-    }
-    ImGui::PopFont();
 }
 
 static Bool BeginModule(EditorUI& editor, const char* title, Float bodyHeight, Bool& isOpen, Float sY, const char* icon, Bool* pAddModule = nullptr, Bool* outDeleteClicked = nullptr)
@@ -1453,6 +1416,60 @@ void InspectorView::_FlushProps()
     }
 }
 
+static constexpr CString _kUnknownSymbol = "<!!>";
+
+static void _DoHandleRender(EditorUI& editor, String* handleFile, Symbol* sym, CString mask, CString tooltipFiles)
+{
+    if (sym && sym->GetCRC64() && handleFile->empty())
+    {
+        *handleFile = editor.GetApplication().GetRegistry()->FindResourceName(*sym);
+        if (handleFile->empty())
+        {
+            *handleFile = _kUnknownSymbol; // not found placeholder
+        }
+    }
+    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(60, 60, 60, 255));
+    const char* textShow = *handleFile == _kUnknownSymbol ? "<Unknown>" : *handleFile == "" ? editor.GetApplication().GetLanguageText("misc.empty").c_str() : handleFile->c_str();
+    ImGui::InputText("##inpHandle", (char*)textShow, strlen(textShow) + 1, ImGuiInputTextFlags_ReadOnly);
+    if (ImGui::BeginDragDropTarget())
+    {
+        const ImGuiPayload* pl = ImGui::AcceptDragDropPayload("TT_ASSET");
+        if (pl)
+        {
+            String nHandle = (CString)pl->Data;
+            if (StringMask::MatchSearchMask(nHandle.c_str(), mask, StringMask::MASKMODE_SIMPLE_MATCH))
+            {
+                handleFile->assign(nHandle);
+                if (sym)
+                    *sym = Symbol(nHandle);
+                // on change
+            }
+            else
+            {
+                PlatformMessageBoxAndWait(editor.GetApplication().GetLanguageText("misc.invalid_type"), editor.GetApplication().GetLanguageText("misc.only_xxx") + " " + tooltipFiles);
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::BeginTooltip();
+        ImGui::SetTooltip(editor.GetApplication().GetLanguageText("misc.drag_here").c_str(), tooltipFiles);
+        ImGui::EndTooltip();
+    }
+    ImGui::PopStyleColor();
+    ImGui::PushFont(ImGui::GetFont(), 11.0f);
+    ImGui::SameLine();
+    if (ImGui::Button(editor.GetApplication().GetLanguageText("misc.reset_lower").c_str()) && !handleFile->empty() && *handleFile != "<!!>")
+    {
+        *handleFile = "";
+        if (sym)
+            *sym = Symbol();
+        // on change
+    }
+    ImGui::PopFont();
+}
+
 Bool InspectorView::Render()
 {
     Float yOff = MAX(0.04f, 40.f / GetMainViewport()->Size.y);
@@ -1536,7 +1553,7 @@ Bool InspectorView::Render()
                                 if (BeginModule(_EditorUI, it->second.ModuleName.c_str(),
                                     it->second.LastHeight, it->second.IsOpen, scrollY, it->second.ModuleIcon.c_str()))
                                 {
-                                    for (const auto& prop : it->second.Properties)
+                                    for (auto& prop : it->second.Properties)
                                     {
                                         if(!prop.Property)
                                             continue;
@@ -1554,23 +1571,108 @@ Bool InspectorView::Render()
                                         }
                                         ImGui::PopFont();
                                         ImGui::Dummy(ImVec2{ 1.0f, 2.0f });
-                                        if (prop.Specification->RenderInstruction)
+                                        if(prop.Specification->RenderInstruction && prop.Specification->RenderInstruction->Render == &PropertyRenderFunctions::RenderAnimOrChore)
+                                        {
+                                            // assuming mhAnim and mhChore (always)
+                                            Meta::ClassInstance anim = Meta::GetMember(prop.Property, "mhAnim", false);
+                                            Meta::ClassInstance chore = Meta::GetMember(prop.Property, "mhChore", false);
+                                            if (!anim || !chore)
+                                            {
+                                                ImGui::Text("FIXME!AnimOrChore(1)"); // they dont exist?
+                                            }
+                                            else
+                                            {
+                                                const Meta::Class& aclazz = Meta::GetClass(anim.GetClassID());
+                                                const Meta::Class& cclazz = Meta::GetClass(chore.GetClassID());
+                                                if(aclazz.Members.size() && cclazz.Members.size())
+                                                {
+                                                    const Meta::Class& aclazz0 = Meta::GetClass(aclazz.Members[0].ClassID);
+                                                    const Meta::Class& cclazz0 = Meta::GetClass(cclazz.Members[0].ClassID);
+                                                    Bool choreSym = Meta::IsSymbolClass(cclazz0), animSym= Meta::IsSymbolClass(aclazz0);
+                                                    if((Meta::IsStringClass(aclazz0) || animSym) && (Meta::IsStringClass(cclazz0) || choreSym))
+                                                    {
+                                                        void* animValue = Meta::GetMember(anim, aclazz.Members[0].Name, true)._GetInternal();
+                                                        void* choreValue = Meta::GetMember(chore, cclazz.Members[0].Name, true)._GetInternal();
+                                                        String* animString = (String*)animValue; Symbol* animSymbol = (Symbol*)animValue;
+                                                        String* choreString = (String*)choreValue; Symbol* choreSymbol = (Symbol*)choreValue;
+                                                        // we have a choice here to prioritise chore or anim (if both are set, should NOT be). i think chore seems logical, since it is higher level
+                                                        Bool isChore = (choreSym ? choreSymbol->GetCRC64() != 0 : !choreString->empty());
+                                                        Bool isSet = isChore || (animSym ? animSymbol->GetCRC64() != 0 : !animString->empty());
+                                                        Symbol* symbolParam = 0;
+                                                        String strValue{}; 
+                                                        if (isSet)
+                                                        {
+                                                            symbolParam = isChore ? choreSym ? choreSymbol : nullptr : animSym ? animSymbol : nullptr;
+                                                            strValue = *(isChore ? !choreSym ? choreString : &prop.Specification->RuntimeCache.SymbolCache : !animSym ? animString : &prop.Specification->RuntimeCache.SymbolCache);
+                                                        }
+                                                        _DoHandleRender(_EditorUI, &strValue, symbolParam, "*.anm;*.chore", ".anm/.chore");
+                                                        if(strValue != _kUnknownSymbol)
+                                                        {
+                                                            if(StringEndsWith(strValue, ".anm", false))
+                                                            {
+                                                                if (animSym)
+                                                                    *animSymbol = Symbol(strValue);
+                                                                else
+                                                                    *animString = strValue;
+                                                                if (choreSym)
+                                                                    *choreSymbol = Symbol{};
+                                                                else
+                                                                    *choreString = "";
+                                                            }
+                                                            else if(StringEndsWith(strValue, ".chore", false))
+                                                            {
+                                                                if (choreSym)
+                                                                    *choreSymbol = Symbol(strValue);
+                                                                else
+                                                                    *choreString = strValue;
+                                                                if (animSym)
+                                                                    *animSymbol = Symbol{};
+                                                                else
+                                                                    *animString = "";
+                                                            }
+                                                            else
+                                                            {
+                                                                if (animSym)
+                                                                    *animSymbol = Symbol{};
+                                                                else
+                                                                    *animString = "";
+                                                                if (choreSym)
+                                                                    *choreSymbol = Symbol{};
+                                                                else
+                                                                    *choreString = "";
+                                                            }
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        ImGui::Text("FIXME!AnimOrChore(3)"); // not a string / symbol value
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    ImGui::Text("FIXME!AnimOrChore(2)"); // no members in handle??
+                                                }
+                                            }
+                                        }
+                                        else if (prop.Specification->RenderInstruction)
                                         {
                                             prop.Specification->RenderInstruction->Render(_EditorUI, *prop.Specification, prop.Property);
                                         }
                                         else if (prop.Specification->HandleClassID)
                                         {
+                                            const String& ext = Meta::GetClass(prop.Specification->HandleClassID).Extension;
+                                            String extMask = "*." + ext;
                                             if (Meta::IsSymbolClass(Meta::GetClass(prop.Property.GetClassID())))
                                             {
-                                                _DoHandleRender(_EditorUI, &prop.Specification->RuntimeCache.SymbolCache, (Symbol*)prop.Property._GetInternal(), prop.Specification->HandleClassID);
+                                                _DoHandleRender(_EditorUI, &prop.Specification->RuntimeCache.SymbolCache, (Symbol*)prop.Property._GetInternal(), extMask.c_str(), ext.c_str());
                                             }
                                             else if (Meta::IsStringClass(Meta::GetClass(prop.Property.GetClassID())))
                                             {
-                                                _DoHandleRender(_EditorUI, (String*)prop.Property._GetInternal(), 0, prop.Specification->HandleClassID);
+                                                _DoHandleRender(_EditorUI, (String*)prop.Property._GetInternal(), 0, extMask.c_str(), ext.c_str());
                                             }
                                             else
                                             {
-                                                ImGui::Text("FIXME!Handle:%s", Meta::GetClass(prop.Property.GetClassID()).Name.c_str()); // incorrect not a handle. render error here
+                                                ImGui::Text("FIXME!Handle:%s", ext.c_str()); // incorrect not a handle. render error here
                                             }
                                         }
                                         ImGui::PopID();

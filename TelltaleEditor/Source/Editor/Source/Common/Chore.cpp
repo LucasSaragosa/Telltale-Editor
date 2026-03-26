@@ -271,29 +271,32 @@ Bool Chore::_DoLoadDependentResourcesAsync()
 {
     for(auto& res: _Resources)
     {
-        if(res.ResFlags.Test(Chore::Resource::EMBEDDED))
+        if (!res.ResFlags.Test(Chore::Resource::AGENT_RESOURCE))
         {
-            if (res.Embed)
+            if (res.ResFlags.Test(Chore::Resource::EMBEDDED))
             {
-                res.Embed->Attach(std::static_pointer_cast<Chore, Handleable>(shared_from_this()), res);
+                if (res.Embed)
+                {
+                    res.Embed->Attach(std::static_pointer_cast<Chore, Handleable>(shared_from_this()), res);
+                }
+                else
+                {
+                    TTE_LOG("WARNING: Embedded chore resource is empty but is specified: %s", res.Name.c_str());
+                }
             }
             else
             {
-                TTE_LOG("WARNING: Embedded chore resource is empty but is specified: %s", res.Name.c_str());
-            }
-        }
-        else
-        {
-            // warnings here can be quiet, UI chore does them anyway
-            HandleBase hBase{};
-            hBase.SetObject(res.Name);
-            Ptr<Handleable> pHandle = hBase.GetBlindObject(GetRegistry(), true);
-            if(pHandle)
-            {
-                WeakPtr<MetaOperationsBucket_ChoreResource> pChoreBucket = AbstractMetaOperationsBucket::CreateBucketReference<MetaOperationsBucket_ChoreResource>(pHandle);
-                if(!pChoreBucket.expired())
+                // warnings here can be quiet, UI chore does them anyway
+                HandleBase hBase{};
+                hBase.SetObject(res.Name);
+                Ptr<Handleable> pHandle = hBase.GetBlindObject(GetRegistry(), true);
+                if (pHandle)
                 {
-                    pChoreBucket.lock()->Attach(std::static_pointer_cast<Chore, Handleable>(shared_from_this()), res);
+                    WeakPtr<MetaOperationsBucket_ChoreResource> pChoreBucket = AbstractMetaOperationsBucket::CreateBucketReference<MetaOperationsBucket_ChoreResource>(pHandle);
+                    if (!pChoreBucket.expired())
+                    {
+                        pChoreBucket.lock()->Attach(std::static_pointer_cast<Chore, Handleable>(shared_from_this()), res);
+                    }
                 }
             }
         }

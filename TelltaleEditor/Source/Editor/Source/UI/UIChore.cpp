@@ -63,8 +63,8 @@ void UIResourceEditorRuntimeData<Chore>::DoAddAgentResourcePostLoadCallback(Stri
             PropertySet::AddParent(res.Properties, kProceduralLookAtPropNameSymbol, reg);
         }
         res.ControlAnimation = TTE_NEW_PTR(Animation, MEMORY_TAG_COMMON_INSTANCE, reg);
-        pLookAt->AddToChore(EditorInstance->GetCommonObject(), res);
         pLookAt->Attach(EditorInstance->GetCommonObject(), res);
+        pLookAt->AddToChore(EditorInstance->GetCommonObject(), res);
         pAgent->Resources.push_back((I32)pChore->GetResources().size() - 1);
     }
     else
@@ -79,8 +79,8 @@ void UIResourceEditorRuntimeData<Chore>::DoAddAgentResourcePostLoadCallback(Stri
             res.ResFlags.Add(Chore::Resource::VIEW_GRAPHS);
             res.Properties = TelltaleEditor::Get()->CreatePropertySet();
             res.ControlAnimation = TTE_NEW_PTR(Animation, MEMORY_TAG_COMMON_INSTANCE, reg);
-            pRes.lock()->AddToChore(EditorInstance->GetCommonObject(), res);
             pRes.lock()->Attach(EditorInstance->GetCommonObject(), res);
+            pRes.lock()->AddToChore(EditorInstance->GetCommonObject(), res);
             pAgent->Resources.push_back((I32)pChore->GetResources().size() - 1);
         }
         else
@@ -182,7 +182,7 @@ Bool UIResourceEditor<Chore>::RenderEditor()
             preloadHandles.reserve(GetCommonObject()->GetResources().size());
             for(const auto& resource: GetCommonObject()->GetResources())
             {
-                if(!resource.ResFlags.Test(Chore::Resource::EMBEDDED))
+                if(!resource.ResFlags.Test(Chore::Resource::EMBEDDED) && !resource.ResFlags.Test(Chore::Resource::AGENT_RESOURCE))
                 {
                     HandleBase hResource{};
                     hResource.SetObject(resource.Name);
@@ -307,6 +307,11 @@ Bool UIResourceEditor<Chore>::RenderEditor()
                     }
                     // TODO EYES
                     ImGui::EndMenu();
+                }
+                // blocking anims for moving agents around manually
+                if(ImGui::BeginMenu("Add Blocking"))
+                {
+
                 }
                 // OTHER RESOURCE
                 ImGui::EndMenu();
@@ -1159,6 +1164,8 @@ Bool UIResourceEditor<Chore>::RenderEditor()
                         // GRAPHS FOR CONTROL ANIMATION
                         for(auto& animatedValue: resource.ControlAnimation->GetAnimatedValues())
                         {
+                            if (animatedValue->GetName() != "contribution" && animatedValue->GetName() != "time")
+                                continue; // control animation just plays throughout the chore, acting on the agent in the scene.
                             ImGui::PushID(runningID++);
                             Ptr<KeyframedValue<Float>> fkf = std::dynamic_pointer_cast<KeyframedValue<Float>>(animatedValue);
                             ImGui::GetWindowDrawList()->AddRectFilled(wpos + ImVec2{ 0.0f, CurrentY }, wpos + ImVec2{ wsize.x, CurrentY + RES_HEIGHT + 2.0f }, IM_COL32(205, 212, 201, 255));

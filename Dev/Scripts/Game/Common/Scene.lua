@@ -53,7 +53,7 @@ function NormaliseScene_Bone1(inst, boneScene)
         local agentName = MetaGetClassValue(MetaGetMember(agentInfo, "mAgentName"))
         local agentProps = MetaGetMember(agentInfo, "mAgentSceneProps")
         -- TODO non prop key stuff. (mbMembersimported too??) AND TODO LOCATION
-        print("imported?: ", MetaGetClassValue(MetaGetMember(agentInfo, "mbMembersImportedIntoSceneProps")))
+        -- print("imported?: ", MetaGetClassValue(MetaGetMember(agentInfo, "mbMembersImportedIntoSceneProps")))
         CommonScenePushAgent(boneScene, agentName, agentProps)
     end
     return true

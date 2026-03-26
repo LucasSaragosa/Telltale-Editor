@@ -313,18 +313,43 @@ namespace Meta::_Impl
         static inline void Extract(Handle<T>& out, ClassInstance& inst)
         {
             ClassInstance mem = GetMember(inst, "mHandle", true); // mHandle must exist (It should in all games).
-            TTE_ASSERT(Is(mem, "Symbol") || Is(mem, "class Symbol"), "Handle<T>::mHandle is not a Symbol");
-            Symbol val{};
-            Meta::ExtractCoercableInstance(val, mem);
-            out.SetObject(val);
+            Bool isSymbol = Is(mem, "Symbol") || Is(mem, "class Symbol");
+            Bool isString = Is(mem, "String") || Is(mem, "class String");
+            TTE_ASSERT(isSymbol || isString, "Handle<T>::mHandle is not a Symbol or String");
+            if (isString)
+            {
+                String val{};
+                Meta::ExtractCoercableInstance(val, mem);
+                out.SetObject(val);
+            }
+            else
+            {
+                Symbol val{};
+                Meta::ExtractCoercableInstance(val, mem);
+                out.SetObject(val);
+            }
         }
         
         static inline void Import(const Handle<T>& in, ClassInstance& inst)
         {
             ClassInstance mem = GetMember(inst, "mHandle", true);
-            TTE_ASSERT(Is(mem, "Symbol") || Is(mem, "class Symbol"), "Handle<T>::mHandle is not a Symbol");
-            Symbol val = in.GetObject();
-            Meta::ImportCoercableInstance(val, mem);
+            Bool isSymbol = Is(mem, "Symbol") || Is(mem, "class Symbol");
+            Bool isString = Is(mem, "String") || Is(mem, "class String");
+            TTE_ASSERT(isSymbol || isString, "Handle<T>::mHandle is not a Symbol or String");
+            if (isSymbol)
+            {
+                Symbol val = in.GetObject();
+                Meta::ImportCoercableInstance(val, mem);
+            }
+            else
+            {
+                String val = in.GetObjectResolved();
+                if (in.GetObject().GetCRC64() != 0 && val.empty())
+                {
+                    TTE_LOG("WARNING: When importing Handle<T> the file name could not be resolved, the hash is unknown: %llX", in.GetObject().GetCRC64());
+                }
+                Meta::ImportCoercableInstance(val, mem);
+            }
         }
         
         static inline void ImportLua(const Handle<T>& in, LuaManager& man)
@@ -442,6 +467,7 @@ public:
     virtual Bool CopyResource(const Symbol& srcResourceName, const String& dstResourceNameStr) = 0;
     virtual DataStreamRef OpenResource(const Symbol& resourceName, String* outName) = 0; // optional outName to get resource name from symbol (we want to support that)
     virtual void RefreshResources() = 0;
+    virtual Bool IsEmpty() = 0;
     
     // Opens a sub-directory inside this directory
     virtual Ptr<RegistryDirectory> OpenDirectory(const String& name) = 0;
@@ -502,6 +528,7 @@ public:
     virtual Bool CopyResource(const Symbol& srcResourceName, const String& dstResourceNameStr); // copy resource to dest
     virtual DataStreamRef OpenResource(const Symbol& resourceName, String* outName); // open resource
     virtual void RefreshResources();
+    virtual Bool IsEmpty();
     
     virtual Ptr<RegistryDirectory> OpenDirectory(const String& name);
     
@@ -544,6 +571,7 @@ public:
     virtual Bool CopyResource(const Symbol& srcResourceName, const String& dstResourceNameStr); // copy resource to dest
     virtual DataStreamRef OpenResource(const Symbol& resourceName, String* outName); // open resource
     virtual void RefreshResources(); // refresh
+    virtual Bool IsEmpty();
     
     Bool UpdateArchiveInternal(const String& resourceName, Ptr<ResourceLocation>& location, std::unique_lock<std::recursive_mutex>& lck); // update from resource syss
     
@@ -583,6 +611,7 @@ public:
     virtual Bool CopyResource(const Symbol& srcResourceName, const String& dstResourceNameStr); // copy resource to dest
     virtual DataStreamRef OpenResource(const Symbol& resourceName,String* outName); // open resource
     virtual void RefreshResources(); // refresh
+    virtual Bool IsEmpty();
     
     Bool UpdateArchiveInternal(const String& resourceName, Ptr<ResourceLocation>& location, std::unique_lock<std::recursive_mutex>& lck); // update from resource sys
     
@@ -622,6 +651,7 @@ public:
     virtual Bool CopyResource(const Symbol& srcResourceName, const String& dstResourceNameStr); // copy resource to dest
     virtual DataStreamRef OpenResource(const Symbol& resourceName,String* outName); // open resource
     virtual void RefreshResources(); // refresh
+    virtual Bool IsEmpty();
     
     Bool UpdateArchiveInternal(const String& resourceName, Ptr<ResourceLocation>& location, std::unique_lock<std::recursive_mutex>& lck); // update from resource sys
     
@@ -661,6 +691,7 @@ public:
     virtual Bool CopyResource(const Symbol& srcResourceName, const String& dstResourceNameStr); // copy resource to dest
     virtual DataStreamRef OpenResource(const Symbol& resourceName,String* outName); // open resource
     virtual void RefreshResources(); // refresh
+    virtual Bool IsEmpty();
     
     Bool UpdateArchiveInternal(const String& resourceName, Ptr<ResourceLocation>& location, std::unique_lock<std::recursive_mutex>& lck); // update from resource sys
     
@@ -701,6 +732,7 @@ public:
     virtual Bool CopyResource(const Symbol& srcResourceName, const String& dstResourceNameStr); // copy resource to dest
     virtual DataStreamRef OpenResource(const Symbol& resourceName,String* outName); // open resource
     virtual void RefreshResources(); // refresh
+    virtual Bool IsEmpty();
     
     Bool UpdateArchiveInternal(const String& resourceName, Ptr<ResourceLocation>& location, std::unique_lock<std::recursive_mutex>& lck); // update from resource sys
     
@@ -736,6 +768,8 @@ struct ResourceLocation
     virtual DataStreamRef LocateResource(const Symbol& name, String* outName) = 0;
     
     virtual Bool HasResource(const Symbol& name) = 0;
+
+    virtual Bool IsEmpty() = 0;
     
     virtual String GetPhysicalPath() = 0; // get physical path if this is a system directory
     
@@ -774,6 +808,8 @@ struct ResourceLogicalLocation : ResourceLocation
     virtual DataStreamRef LocateResource(const Symbol& name, String* outName);
     
     virtual Bool HasResource(const Symbol& name);
+
+    virtual Bool IsEmpty();
     
     virtual RegistryDirectory* LocateConcreteDirectory(const Symbol& resourceName);
     
@@ -824,6 +860,11 @@ struct ResourceConcreteLocation : ResourceLocation
     inline Bool HasResource(const Symbol& name) override
     {
         return Directory.HasResource(name, nullptr);
+    }
+
+    inline Bool IsEmpty() override
+    {
+        return Directory.IsEmpty();
     }
     
     inline String GetPhysicalPath() override
@@ -1087,6 +1128,9 @@ public:
     
     // Gets all resource names which match the optional mask, else all. Specify the resource location to search in.
     void GetLocationResourceNames(const Symbol& location, std::set<String>& outNames, const StringMask* optionalMask);
+
+    // Returns whether the given resource location is empty, ie has no resources within it.
+    Bool IsLocationEmpty(const Symbol& location);
     
     // Returns true if the given resource exists on file or in cache
     Bool ResourceExists(const Symbol& resourceName);

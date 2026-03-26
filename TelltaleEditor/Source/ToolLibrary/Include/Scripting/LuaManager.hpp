@@ -241,6 +241,9 @@ public:
     
     // DOES NOT POP. Compiles the function at the top of the stack and writes the compiled script to the given data stream argument.
     Bool Compile(DataStream* dst);
+
+    // Prints the current stack trace
+    void PrintStackTrace();
     
     // Default constructor.
     LuaManager() = default;
@@ -371,6 +374,8 @@ public:
     virtual Bool DoDump(lua_Writer writer, void* ud) = 0;
     
     virtual void Pop(U32 N) = 0;
+
+    virtual void PrintStackTrace() = 0;
     
     virtual I32 GetTop() = 0;
     
@@ -491,6 +496,8 @@ public:
     virtual CString Typename(LuaType) override;
     
     virtual Bool GetMetatable(I32 index) override;
+
+    virtual void PrintStackTrace() override;
     
     virtual Bool SetMetatable(I32 index) override;
     
@@ -552,6 +559,8 @@ public:
     virtual void SetTable(I32 index, Bool bRaw) override;
     
     virtual I32 RefReg() override;
+
+    virtual void PrintStackTrace() override;
     
     virtual void UnrefReg(I32) override;
     
@@ -629,6 +638,8 @@ public:
     virtual void Push(LuaType type, void* pValue) override;
     
     virtual Bool DoDump(lua_Writer writer, void* ud) override;
+
+    virtual void PrintStackTrace() override;
     
     virtual void Pop(U32 N) override;
     

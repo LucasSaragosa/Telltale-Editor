@@ -122,6 +122,9 @@ public:
     // Constructor to defaults
     inline Camera()
     {
+        AttachScene = nullptr;
+        _ScreenHeight = _ScreenWidth = 0;
+        _AspectRatio = 0.0f;
         _BPushed = _BIsViewCamera = _BAllowInvertedDepth = _BShouldUpdateBlendDestination = false;
         _CachedProjectionMatrix = _CachedViewMatrix = Matrix4::Identity();
         _BViewMatrixDirty = _BFrustumDirty = _BProjectionMatrixDirty = true;

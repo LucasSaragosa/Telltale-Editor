@@ -855,7 +855,7 @@ Bool UIProjectCreate::Render()
             cursorY += GetTextLineHeightWithSpacing();
             PopStyleColor();
         }
-        else
+        else if(_MountPoints.empty())
         {
             SetCursorScreenPos(ImVec2(contentX, cursorY));
             PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
@@ -1061,8 +1061,8 @@ Bool UIProjectCreate::Render()
                 proj.MountDirectories.push_back(std::filesystem::path{mp});
             }
             GetApplication().GetProjectManager().CreateProject(std::move(proj));
-            GetApplication()._OnProjectLoad();
             Reset();  // Done!
+            GetApplication()._OnProjectLoad();
             GetApplication().PopUI();
         }
 

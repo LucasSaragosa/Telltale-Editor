@@ -19,9 +19,11 @@
 -- This has a really annoying bug with *base classes* which are declared with pointers!
 function VersionCRC_V0_PointerFix(classTable)
 	local temp = 0
+	
 	if not MetaFlagQuery(classTable.Flags, kMetaClassNonBlocked) then
-		temp = tonumber("0xFFFF")
+		temp = tonumber("0xFFFF") or 0
 	end
+
 	local hash = MetaHashInt(0, temp)
 	if type(classTable.Members) == "table" then 
 		for _,member in pairs(classTable.Members) do
@@ -49,7 +51,7 @@ end
 function VersionCRC_V0(classTable)
 	local temp = 0
 	if not MetaFlagQuery(classTable.Flags, kMetaClassNonBlocked) then
-		temp = tonumber("0xFFFF")
+		temp = tonumber("0xFFFF") or 0
 	end
 	local hash = MetaHashInt(0, temp)
 

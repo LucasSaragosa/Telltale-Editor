@@ -1,6 +1,6 @@
 -- Other implementations of bone classes
 
-function NormaliseInputMapper0(state, instance)
+function NormaliseInputMapper0(instance, state)
     
     CommonInputMapperSetName(state, MetaGetClassValue(MetaGetMember(instance, "mName")))
 
@@ -10,7 +10,7 @@ function NormaliseInputMapper0(state, instance)
     for i=1,numMappings do
         local mapping = ContainerGetElement(mappings, i - 1)
         CommonInputMapperPushMapping(state, MetaGetClassValue(MetaGetMember(MetaGetMember(mapping, "mInputCode"), "mVal")),
-                                            MetaGetClassValue(MetaGetMember(MetaGetMember(mapping, "mEventType"), "mVal")),
+                                            MetaGetClassValue(MetaGetMember(MetaGetMember(mapping, "mEvent"), "mVal")),
                                             MetaGetClassValue(MetaGetMember(mapping, "mScriptFunction")), -1)
     end
 

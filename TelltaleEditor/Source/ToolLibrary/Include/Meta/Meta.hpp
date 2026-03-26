@@ -1042,6 +1042,7 @@ namespace Meta
     
     struct InternalState
     {
+
         std::vector<RegGame> Games{};
         std::map<U32, Class> Classes{};
         std::map<Symbol, CompiledScript> Serialisers{}; // map of serialiser name => compiled script binary

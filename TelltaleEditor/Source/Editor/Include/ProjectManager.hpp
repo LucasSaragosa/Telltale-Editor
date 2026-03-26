@@ -56,7 +56,7 @@ public:
 
     TTEProject* GetHeadProject(); // currently active proj. return null if none yet
     
-    void CreateProject(TTEProject project); // create a project and set as active project. ensure name doesnt already exist.
+    Bool CreateProject(TTEProject project); // create a project and set as active project. ensure name doesnt already exist.
 
     void SetProject(const String& name); // set active project 
 

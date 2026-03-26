@@ -1461,6 +1461,7 @@ AddIntrinsic(man, script_constant_string, name_string, std::move(c));
             }
             else
             {
+                man.PrintStackTrace();
                 String v = man.ToString(-1);
                 TTE_LOG("MetaGetMember(%s) called with invalid instance. Returning nil", v.c_str());
                 man.PushNil();
@@ -1727,7 +1728,9 @@ AddIntrinsic(man, script_constant_string, name_string, std::move(c));
         
         static U32 luaMetaDumpVersions(LuaManager& man)
         {
+            char Buf[1024];
             std::set<String> sortedClassNames{};
+            
             for(auto& clazz: State.Classes)
             {
                 std::ostringstream ss{};
@@ -1738,6 +1741,7 @@ AddIntrinsic(man, script_constant_string, name_string, std::move(c));
                 << clazz.second.VersionNumber << "]";
                 ss << " LHASH: 0x" << std::hex << std::uppercase << std::setw(0)
                 << clazz.second.LegacyHash;
+                ss << " VERS: " << Meta::MakeSerialisedVersionInfoFileName(clazz.first, true);
                 sortedClassNames.insert(ss.str());
             }
             for(auto& it: sortedClassNames)

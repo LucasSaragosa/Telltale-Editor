@@ -4,6 +4,8 @@
 
 #include <sstream>
 
+static constexpr std::initializer_list<CString> TTE_LUA_CACHED_PROCEDURES = { "ProceduralLookAt_OnAttach", "RegisterModuleUI" };
+
 void luaCompleteGameEngine(LuaFunctionCollection& Col); // Full game engine (Telltale). See LuaGameEngine.cpp
 
 extern Float kDefaultContribution[256];
@@ -63,12 +65,9 @@ void TelltaleEditor::_PostSwitch(GameSnapshot snap)
 
     _ModuleVisualProperties.clear();
 
-    String func = snap.ID + "_RegisterModuleUI";
-    ScriptManager::GetGlobal(_ModdingContext->GetLibraryLVM(), func, true);
-    if (_ModdingContext->GetLibraryLVM().Type(-1) != LuaType::FUNCTION)
+    if(!_ModdingContext->PushCachedLuaProcedure("RegisterModuleUI"))
     {
-        _ModdingContext->GetLibraryLVM().Pop(1);
-        TTE_LOG("WARNING: Snapshot for game %s does not declare function %s required for module UI registration! Modules won't be editable in the inspector view.", snap.ID.c_str(), func.c_str());
+        TTE_LOG("WARNING: Snapshot for game %s does not declare function %s_RegisterModuleUI required for module UI registration! Modules won't be editable in the inspector view.", snap.ID.c_str(), snap.ID.c_str());
     }
     else
     {
@@ -78,7 +77,7 @@ void TelltaleEditor::_PostSwitch(GameSnapshot snap)
 
 void TelltaleEditor::Switch(GameSnapshot s)
 {
-    _ModdingContext->Switch(s);
+    _ModdingContext->Switch(s, TTE_LUA_CACHED_PROCEDURES);
     _PostSwitch(s);
 }
 

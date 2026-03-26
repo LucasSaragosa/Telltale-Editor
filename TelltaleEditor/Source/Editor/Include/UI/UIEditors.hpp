@@ -144,6 +144,8 @@ public:
     virtual ~UIResourceEditorBase() = default;
     
     virtual Bool IsAlive() const = 0;
+
+    virtual Bool Expired() const = 0;
     
     virtual String GetUniqueComparator() const = 0; // eg open file name, inspecting agent. so no more than one window with this editor an be open.
     
@@ -282,6 +284,11 @@ protected:
     }
     
 public:
+
+    virtual inline Bool Expired() const override final
+    {
+        return (AggregateType == Type::COMMON && !Object) || (AggregateType == Type::WEAK_META && WeakParent.expired()) || ((AggregateType == Type::STRONG_META || AggregateType == Type::WEAK_META) && MetaObj.Expired());
+    }
     
     // FOR WEAK REF'ED
     inline UIResourceEditor(String file, EditorUI& ui, Meta::ClassInstance weakRef, Meta::ParentWeakReference p, String t)
@@ -307,7 +314,7 @@ public:
 
     inline virtual Bool Render() override final
     {
-        if(Alive && ((AggregateType == Type::WEAK_META && WeakParent.expired()) || ((AggregateType == Type::STRONG_META || AggregateType == Type::WEAK_META) && MetaObj.Expired()) || RenderEditor()))
+        if(Alive && (Expired() || RenderEditor()))
         {
             OnExit();
             Alive = false;

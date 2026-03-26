@@ -217,14 +217,14 @@ void ProjectManager::SetProject(const String& name)
     SaveToWorkspace(); // resave
 }
 
-void ProjectManager::CreateProject(TTEProject project)
+Bool ProjectManager::CreateProject(TTEProject project)
 {
     Bool bExists = CompareCaseInsensitive(_ActiveProject.ProjectName, project.ProjectName);
     if(!bExists)
     {
-        for (const auto& project : _PreviousProjects)
+        for (const auto& xproject : _PreviousProjects)
         {
-            if (CompareCaseInsensitive(project.ProjectName, project.ProjectName))
+            if (CompareCaseInsensitive(project.ProjectName, xproject.ProjectName))
             {
                 bExists = true;
                 break;
@@ -233,13 +233,16 @@ void ProjectManager::CreateProject(TTEProject project)
     }
     if(bExists)
     {
-        TTE_LOG("WARNING: At CreateProject the project already exists.");
+        TTE_LOG("WARNING: Project path mismatch");
+        PlatformMessageBoxAndWait("Project file path", "There already exists a project at the same file path! Please choose a different one and redo the creation process");
+        return false;
     }
     else
     {
         String name = project.ProjectName;
         _PreviousProjects.push_back(std::move(project));
         SetProject(name);
+        return true;
     }
 }
 

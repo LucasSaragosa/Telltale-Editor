@@ -21,7 +21,7 @@ struct ChoreResource
         NO_POSE = 1,
         EMBEDDED = 2,
         ENABLED = 4,
-        AGENT_RESOURCE = 8,
+        AGENT_RESOURCE = 8, // resource which is tied to the agent specifically
         VIEW_GRAPHS = 16, // view graphs is open in UI (this is persistent in the file, not sure why..., same for other view flags)
         VIEW_PROPERTIES = 32, // view properties is open in UI
         VIEW_GROUPS = 64, // view resource groups is open in UI

@@ -31,6 +31,15 @@ function NormaliseProceduralLookAt0(i, state)
     return true
 end
 
+-- Called by each game specialiser. This installs the prop keys needed for procedural look at chore entries
+function ProceduralLookAt_OnAttach(props, ver) -- ver 0 for now for lodest
+    PropertyCreate(props, "Target Agent", "class String", "")
+    -- important: the default look at, looks at the agents 'head' node
+    PropertyCreate(props, "Target Agent Node", "class String", "head")
+    -- similar, this is the actual node on the agent about to look, default their head lol
+    PropertyCreate(props, "Host Agent Node", "class String", "head")
+end
+
 function RegisterCompressedVecAndQuats0()
     local quatKeys = NewClass("class CompressedQuaternionKeys", 0)
     quatKeys.Flags = kMetaClassIntrinsic -- not in headers

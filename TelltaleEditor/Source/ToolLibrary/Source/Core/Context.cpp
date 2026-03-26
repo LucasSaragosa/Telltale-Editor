@@ -107,7 +107,30 @@ Ptr<ResourceRegistry> ToolContext::CreateResourceRegistry(Bool bAttachAll)
     return registry;
 }
 
-void ToolContext::Switch(GameSnapshot snapshot)
+Bool ToolContext::PushCachedLuaProcedure(const String& name)
+{
+    for(const auto& proc: _CachedSDProcs)
+    {
+        if(proc.first == name)
+        {
+            ScriptManager::GetGlobal(GetLibraryLVM(), proc.second.SpecialisedName, true);
+            if (GetLibraryLVM().Type(-1) != LuaType::FUNCTION)
+            {
+                GetLibraryLVM().Pop(1);
+                if (!GetLibraryLVM().LoadChunk(name, proc.second.Binary, proc.second.Size, LoadChunkMode::BINARY))
+                {
+                    TTE_ASSERT(false, "ERROR: When attempting to load cached lua function '%s', LoadChunk returned false.", name.c_str());
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+    TTE_LOG("WARNING: Cannot call attempted lua cache '%s' as the function was not loaded! There may be side effects.", name.c_str());
+    return false;
+}
+
+void ToolContext::Switch(GameSnapshot snapshot, std::initializer_list<CString> luaProcs)
 {
     if(snapshot.ID.empty() || !Meta::_Impl::_CheckPlatform(snapshot.Platform))
     {
@@ -128,6 +151,45 @@ void ToolContext::Switch(GameSnapshot snapshot)
     
     GetLibraryLVM().PushNil();
     ScriptManager::SetGlobal(GetLibraryLVM(), "__ResourceRegistry", true); // remove reg
+
+    // load cachable procs
+    for(const auto& proc: luaProcs)
+    {
+        _CachedLuaProcedure bin{};
+        bin.SpecialisedName = snapshot.ID + "_" + proc;
+        ScriptManager::GetGlobal(GetLibraryLVM(), bin.SpecialisedName, true);
+
+        if (GetLibraryLVM().Type(-1) != LuaType::FUNCTION)
+        {
+            GetLibraryLVM().Pop(1);
+            TTE_LOG("WARNING: Cacheable lua procedure %s does not exist in active state snapshot", bin.SpecialisedName.c_str());
+            continue;
+        }
+
+        // function is on the top of the stack, compile it.
+        DataStreamRef localWriter = DataStreamManager::GetInstance()->CreatePrivateCache(proc);
+        if (!GetToolContext()->GetLibraryLVM().Compile(localWriter.get()) || localWriter->GetSize() <= 0)
+        {
+            GetToolContext()->GetLibraryLVM().Pop(1); // pop the func
+            TTE_LOG("WARNING: Cannot register lua procedure %s: compile failed or empty", bin.SpecialisedName.c_str());
+            continue;
+        }
+        GetLibraryLVM().Pop(1); // pop the func
+
+        localWriter->SetPosition(0); // seek to beginning, then read all bytes.
+        U8* compiledBytes = TTE_ALLOC(localWriter->GetSize(), MEMORY_TAG_SCRIPTING);
+        TTE_ATTACH_DBG_STR(compiledBytes, String("LuaFunctionBin:") + bin.SpecialisedName.c_str());
+
+        if (!localWriter->Read(compiledBytes, localWriter->GetSize()))
+        {
+            TTE_LOG("Could not read bytes from compiled serialiser script stream");
+            TTE_FREE(compiledBytes);
+        }
+
+        bin.Binary = compiledBytes;
+        bin.Size = (U32)localWriter->GetSize();
+        _CachedSDProcs[proc] = std::move(bin);
+    }
     
     _Setup = true;
 }
@@ -203,6 +265,17 @@ void ToolContext::Release()
         if(errors)
             TTE_ASSERT(false, "Found %d alive game dependent objects before a game switch.", errors);
         _SwitchDependents.clear();
+
+        // clear cached prodecures
+        for(const auto& proc: _CachedSDProcs)
+        {
+            const auto& script = proc.second;
+            if (script.Binary)
+            {
+                TTE_FREE(script.Binary);
+            }
+        }
+        _CachedSDProcs.clear();
         
         JobScheduler::Shutdown();
         Blowfish::Shutdown();

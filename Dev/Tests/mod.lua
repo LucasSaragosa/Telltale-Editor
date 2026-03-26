@@ -1,6 +1,6 @@
 local function MountResourceLocations()
     if TTE_GetPlatform() == "Windows" then
-        TTE_MountSystem("<Data>/", "D:/Games/Bone - Out from Boneville/26_06_2007/Pack/data/", true) -- set input files
+        TTE_MountSystem("<Data>/", "D:/Games/Bone - Out from Boneville/2005/data/", true) -- set input files
         TTE_MountSystem("<Vers>/", "c:/Users/lucas/Desktop/extract/Vers/", true)
         TTE_MountSystem("<Extract>/", "c:/Users/lucas/Desktop/extract/", true)
     else
@@ -60,3 +60,6 @@ local function Test()
         local ms = TTE_OpenMetaStream(ResourceGetURL(file))
     end
 end
+
+MountResourceLocations()
+Extract()

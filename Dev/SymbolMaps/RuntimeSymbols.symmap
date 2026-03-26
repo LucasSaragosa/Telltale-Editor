@@ -10523,3 +10523,47 @@ grandma_face_default.anm
 172032.langres
 297472.langres
 sk01_theodore_sk01_grandma_banter_b736.chore
+announcer_boris-flush.chore
+holdem_ui_options.scene
+Show Normals
+Show Tangent Normals
+Max Delay for First Speaking Gesture
+Boot Script
+register.scene
+fone_jaw
+fone_mouthLowerInner_L
+fone_tongue
+fone_mouthLowerInner_R
+fone_mouthLowerOuter_L
+fone_mouthLowerOuter_R
+fone_teethLower
+fone_mouthUpperInner_L
+fone_mouthCorner_L
+fone_cheek_L
+fone_nose
+fone_eyeInner_L
+fone_browOuter_L
+fone_browMiddle_L
+fone_mouthUpperInner_R
+fone_mouthCorner_R
+fone_cheek_R
+fone_browInner_L
+fone_eyeOuter_L
+fone_eyeUpper_L
+fone_eyeLower_L
+fone_browInner_R
+fone_browMiddle_R
+fone_browOuter_R
+fone_eyeUpper_R
+fone_eyeInner_R
+fone_eyeOuter_R
+fone_eyeLower_R
+fone_mouthUpperOuter_L
+fone_mouthUpperOuter_R
+fone_teethUpper_L
+fone_noseLower
+fone_teethUpper_R
+packUpper
+packLower
+adv_desert.scene
+obj_banjo

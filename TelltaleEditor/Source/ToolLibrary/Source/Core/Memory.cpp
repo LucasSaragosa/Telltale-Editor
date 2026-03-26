@@ -181,7 +181,8 @@ namespace Memory
         "ObjOwner::ObjData<T>",
         "MethodImpl",
         "SceneData",
-        "EditorUI"
+        "EditorUI",
+        "ReferenceObject"
     };
 
     CString GetMemoryTagString(U32 tag)
