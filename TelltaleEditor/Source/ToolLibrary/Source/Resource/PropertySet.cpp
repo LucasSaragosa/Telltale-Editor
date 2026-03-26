@@ -590,26 +590,149 @@ void PropertySet::MoveParentToFront(Meta::ClassInstance prop, Symbol parent)
     }
 }
 
+void PropertySet::AddCallback(Meta::ClassInstance prop, Symbol key, Ptr<FunctionBase> pCallback, U32 trackRef)
+{
+    TTE_ASSERT(pCallback && pCallback->GetMethodLockType() != MethodLockType::RAW, "Property set callbacks cannot be raw method object pointers. Please use a Ptr wrapper around the object or decoupled weak pointer fence.");
+    auto& callbacks = ((InternalData*)prop._GetInternalPropertySetData())->KeyCallbacks;
+    if (pCallback)
+    {
+        pCallback->Tag = key;
+        auto it = callbacks.find(KeyCallbackTracked{ pCallback });
+        if (it != callbacks.end())
+        {
+            pCallback->Next = std::move(it->MyCallback);
+            callbacks.erase(it);
+        }
+        callbacks.insert(KeyCallbackTracked{ std::move(pCallback), trackRef });
+    }
+}
+
 void PropertySet::RemoveCallback(Meta::ClassInstance prop, Symbol key, Ptr<FunctionBase> pMatchingCallback)
 {
-    if(key.GetCRC64() == 0 && !pMatchingCallback)
+    if (key.GetCRC64() == 0 && !pMatchingCallback)
         return;
+
     InternalData& data = *((InternalData*)prop._GetInternalPropertySetData());
-    Bool bRemoved;
-    do
+    for (auto it = data.KeyCallbacks.begin(); it != data.KeyCallbacks.end(); )
     {
-        bRemoved = false;
-        for(auto it = data.KeyCallbacks.begin(); it != data.KeyCallbacks.end(); it++)
+        const Ptr<FunctionBase>& head = it->MyCallback;
+
+        if (key.GetCRC64() != 0 && head->Tag != key)
         {
-            const Ptr<FunctionBase>& pCallback = it->MyCallback;
-            if((key.GetCRC64() == 0 || pCallback->Tag == key) && (!pMatchingCallback || pCallback->Equals(*pMatchingCallback)))
+            ++it;
+            continue;
+        }
+
+        Ptr<FunctionBase>* ppCurrent = const_cast<Ptr<FunctionBase>*>(&head); // this is actually ok, since its sorted by the tag which is common across all ones in the linked list
+        Symbol baseTag = ppCurrent->get()->Tag;
+
+        while (*ppCurrent)
+        {
+            Ptr<FunctionBase>& current = *ppCurrent;
+            TTE_ASSERT(current->Tag == baseTag, "At PropertySet::RemoveCallback, callbacks bucket grouped by tag has errorneuos tag"); // all tags should be the same. set is corrupted!
+
+            if (current->Equals(*pMatchingCallback))
             {
-                data.KeyCallbacks.erase(it);
-                bRemoved = true;
-                break;
+                *ppCurrent = std::move(current->Next);
+            }
+            else
+            {
+                ppCurrent = &current->Next;
             }
         }
-    } while(bRemoved);
+
+        if (!head)
+        {
+            it = data.KeyCallbacks.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
+void PropertySet::CallAllCallbacks(Meta::ClassInstance prop, Ptr<ResourceRegistry> pRegistry)
+{
+    InternalData& data = *((InternalData*)prop._GetInternalPropertySetData());
+    auto& callbacks = data.KeyCallbacks;
+
+    Memory::FastBufferAllocator tempAlloc{};
+
+    struct PendingRemove
+    {
+        Ptr<FunctionBase> callback;
+    };
+
+    PendingRemove* pending = nullptr;
+    U32 pendingCount = 0;
+    U32 pendingCapacity = 0;
+
+    auto pushRemove = [&](Ptr<FunctionBase> cb)
+    {
+        if (pendingCount >= pendingCapacity)
+        {
+            size_t newCap = pendingCapacity == 0 ? 8 : pendingCapacity * 2;
+            PendingRemove* newBuf = (PendingRemove*)tempAlloc.Alloc(sizeof(PendingRemove) * newCap, 8);
+            if (!newBuf)
+                return false;
+
+            if (pending)
+            {
+                for (U32 i = 0; i < pendingCount; ++i)
+                {
+                    new (&newBuf[i]) PendingRemove{ std::move(pending[i]) };
+                    pending[i].~PendingRemove();
+                }
+            }
+            else
+            {
+                for (U32 i = 0; i < pendingCount; ++i)
+                {
+                    new (&newBuf[i]) PendingRemove{};
+                }
+            }
+
+            pending = newBuf;
+            pendingCapacity = newCap;
+        }
+
+        pending[pendingCount++] = { std::move(cb) };
+        return true;
+    };
+
+    // call all + mark removal
+    Bool cantRemove = false;
+    for (const auto& cb : callbacks)
+    {
+        Meta::ClassInstance value = Get(prop, cb.MyCallback->Tag, true, pRegistry);
+
+        Ptr<FunctionBase> pFunction = cb.MyCallback;
+
+        while (pFunction)
+        {
+            if (!cantRemove && pFunction->Expired())
+            {
+                if (!pushRemove(pFunction))
+                {
+                    // this can be silent. they will just linger a bit until the next call.
+                    cantRemove = true;
+                }
+                pFunction = pFunction->Next;
+                continue;
+            }
+
+            if(value) pFunction->CallMeta(value, {}, {}, {});
+            pFunction = pFunction->Next;
+        }
+    }
+
+    // remove
+    for (size_t i = 0; i < pendingCount; ++i)
+    {
+        RemoveCallback(prop, pending[i].callback->Tag, pending[i].callback);
+        pending[i].~PendingRemove(); // must call this otherwise we leak!
+    }
 }
 
 HandlePropertySet PropertySet::GetPropertySetValueIsRetrievedFrom(Meta::ClassInstance prop, Symbol keyName, Ptr<ResourceRegistry> pRegistry, Bool bCheckMyself)
@@ -789,21 +912,6 @@ void PropertySet::ClearCallbacks(Meta::ClassInstance prop, U32 ref)
     }
 }
 
-void PropertySet::AddCallback(Meta::ClassInstance prop, Symbol key, Ptr<FunctionBase> pCallback, U32 trackRef)
-{
-    auto& callbacks = ((InternalData*)prop._GetInternalPropertySetData())->KeyCallbacks;
-    if(pCallback)
-    {
-        pCallback->Tag = key;
-        auto it = callbacks.find(KeyCallbackTracked{pCallback});
-        if(it != callbacks.end())
-        {
-            pCallback->Next = std::move(it->MyCallback);
-            callbacks.erase(it);
-        }
-        callbacks.insert(KeyCallbackTracked{std::move(pCallback), trackRef});
-    }
-}
 
 Meta::ClassInstance PropertySet::Get(Meta::ClassInstance prop, Symbol key, Bool bSearchParents, Ptr<ResourceRegistry> pRegistry)
 {
@@ -968,24 +1076,6 @@ void PropertySet::AddChild(Meta::ClassInstance prop, HandlePropertySet child)
         if(ch.GetObject() == child.GetObject())
             return;
     children.push_back(std::move(child));
-}
-
-void PropertySet::CallAllCallbacks(Meta::ClassInstance prop, Ptr<ResourceRegistry> pRegistry)
-{
-    auto& callbacks = ((InternalData*)prop._GetInternalPropertySetData())->KeyCallbacks;
-    for(const auto& cb: callbacks)
-    {
-        Meta::ClassInstance value = Get(prop, cb.MyCallback->Tag, true, pRegistry);
-        if(value) // Important! The callback can exist before or even without the key existing.
-        {
-            FunctionBase* pFunction = cb.MyCallback.get();
-            while (pFunction)
-            {
-                pFunction->CallMeta(value, {}, {}, {});
-                pFunction = pFunction->Next.get();
-            }
-        }
-    }
 }
 
 Bool PropertySet::ContainsAllKeys(Meta::ClassInstance prop, Meta::ClassInstance rhs)

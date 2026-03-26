@@ -282,6 +282,11 @@ Bool UIResourceEditor<Chore>::RenderEditor()
                     GetApplication().QueueResourcePickerPopup(_EditorUI, "Choose Animation", "*.anm",
                                     ALLOCATE_METHOD_CALLBACK_1(this, AddAgentResourceCallback, UIResourceEditorRuntimeData<Chore>, String));
                 }
+                if (ImGui::MenuItem("Add Chore"))
+                {
+                    GetApplication().QueueResourcePickerPopup(_EditorUI, "Choose Chore", "*.chore",
+                        ALLOCATE_METHOD_CALLBACK_1(this, AddAgentResourceCallback, UIResourceEditorRuntimeData<Chore>, String));
+                }
                 // AUD, VOX, LANGUAGE RESOURCES
                 if (ImGui::BeginMenu("Add Procedural Animation"))
                 {

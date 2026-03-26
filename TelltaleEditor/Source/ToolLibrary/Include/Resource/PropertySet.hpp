@@ -120,6 +120,7 @@ public:
     /**
      Adds a callback which will be called with the property given changes.  The property does not have to exist yet.
      Optional tracking reference to delete all callbacks with that reference. Tracking reference 0 is untrackable (ie clear callbacks with 0 will clear all, not just ones with the ref = 0)
+     The callback is NOT allowed to be a raw pointered method callback! You must give it a keep-alive object (either itself or another weak pointer) as to prevent very old lifetime callbacks that don't destroy.
      */
     static void AddCallback(Meta::ClassInstance prop, Symbol property, Ptr<FunctionBase> pCallback, U32 trackingRef = 0);
 
@@ -130,8 +131,8 @@ public:
     static void AddMethodCallbackT(Meta::ClassInstance prop, Symbol property, ClsObj obj, MemFn memFn, U32 trackRef = 0)
     {
         using _MyTraits = _MethodFnTraits<MemFn>; using C = typename _MyTraits::_Clz; using A = typename _MyTraits::_ArgT;
-        static constexpr Bool _IsChecked = CALLBACK_TEST_CHECKED(obj);
-        using _MethodT = Method<C MACRO_COMMA _IsChecked MACRO_COMMA A>;
+        static constexpr MethodLockType _Mtlt = CALLBACK_TEST_CHECKED(obj);
+        using _MethodT = Method<C MACRO_COMMA _Mtlt MACRO_COMMA A>;
         auto cb = TTE_NEW_PTR(_MethodT, MEMORY_TAG_CALLBACK, obj, memFn);
         AddCallback(prop, property, cb, trackRef);
     }

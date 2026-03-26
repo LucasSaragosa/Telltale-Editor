@@ -62,6 +62,19 @@ struct SceneModuleBase
     
 };
 
+// Used as keep-alive in property callbacks, if callbacks used ie runtime changable.
+struct SceneModuleDecoupler
+{
+
+    Ptr<void> Fence;
+
+    inline SceneModuleDecoupler()
+    {
+        Fence = TTE_PROXY_PTR(this, void); // pointer choice here doesnt matter, ill use this since its non zero and real. it is never touched.
+    }
+
+};
+
 // ========================================= SCENE MODULES =========================================
 // ========================================= SCENE MODULES =========================================
 // ========================================= SCENE MODULES =========================================
@@ -103,7 +116,7 @@ template<> struct SceneModule<SceneModuleType::SKELETON> : SceneModuleBase
         return kSkeletonPropName;
     }
 
-    Handle<Skeleton> Skl; // skeleton handle
+    Handle<Skeleton> Skl; // skeleton handle. stored in this struct, no obj data, as it has no callbacks and should not change at runtime.
 
     // impl in animationmgr.cpp
     void OnSetupAgent(SceneAgent* pAgentGettingCreated);
@@ -758,7 +771,7 @@ template<> struct SceneModule<SceneModuleType::LIGHT> : SceneModuleBase
 
 };
 
-template<> struct SceneModule<SceneModuleType::SELECTABLE> : SceneModuleBase
+template<> struct SceneModule<SceneModuleType::SELECTABLE> : SceneModuleBase, SceneModuleDecoupler
 {
 
     static constexpr SceneModuleType ModuleType = SceneModuleType::SELECTABLE;
@@ -785,7 +798,7 @@ template<> struct SceneModule<SceneModuleType::SELECTABLE> : SceneModuleBase
 };
 
 // for when an agent is hovered over, show some mesh + text
-template<> struct SceneModule<SceneModuleType::ROLLOVER> : SceneModuleBase
+template<> struct SceneModule<SceneModuleType::ROLLOVER> : SceneModuleBase, SceneModuleDecoupler
 {
 
     static constexpr SceneModuleType ModuleType = SceneModuleType::ROLLOVER;
@@ -817,7 +830,7 @@ template<> struct SceneModule<SceneModuleType::ROLLOVER> : SceneModuleBase
 };
 
 // derives from text and selectable. so if this module is present, it will contain those too (the module prop should have those parents!)
-template<> struct SceneModule<SceneModuleType::DIALOG_CHOICE> : SceneModuleBase
+template<> struct SceneModule<SceneModuleType::DIALOG_CHOICE> : SceneModuleBase, SceneModuleDecoupler
 {
 
     static constexpr SceneModuleType ModuleType = SceneModuleType::DIALOG_CHOICE;
@@ -840,7 +853,7 @@ template<> struct SceneModule<SceneModuleType::DIALOG_CHOICE> : SceneModuleBase
 
 };
 
-template<> struct SceneModule<SceneModuleType::DIALOG> : SceneModuleBase
+template<> struct SceneModule<SceneModuleType::DIALOG> : SceneModuleBase, SceneModuleDecoupler
 {
 
     static constexpr SceneModuleType ModuleType = SceneModuleType::DIALOG;
@@ -865,7 +878,7 @@ template<> struct SceneModule<SceneModuleType::DIALOG> : SceneModuleBase
 
 };
 
-template<> struct SceneModule<SceneModuleType::WALK_ANIMATOR> : SceneModuleBase
+template<> struct SceneModule<SceneModuleType::WALK_ANIMATOR> : SceneModuleBase, SceneModuleDecoupler
 {
 
     static constexpr SceneModuleType ModuleType = SceneModuleType::WALK_ANIMATOR;
@@ -889,7 +902,7 @@ template<> struct SceneModule<SceneModuleType::WALK_ANIMATOR> : SceneModuleBase
 
 };
 
-template<> struct SceneModule<SceneModuleType::TRIGGER> : SceneModuleBase
+template<> struct SceneModule<SceneModuleType::TRIGGER> : SceneModuleBase, SceneModuleDecoupler
 {
 
     static constexpr SceneModuleType ModuleType = SceneModuleType::TRIGGER;
@@ -915,7 +928,7 @@ template<> struct SceneModule<SceneModuleType::TRIGGER> : SceneModuleBase
 
 };
 
-template<> struct SceneModule<SceneModuleType::NAV_CAM> : SceneModuleBase
+template<> struct SceneModule<SceneModuleType::NAV_CAM> : SceneModuleBase, SceneModuleDecoupler
 {
 
     static constexpr SceneModuleType ModuleType = SceneModuleType::NAV_CAM;
@@ -955,7 +968,7 @@ template<> struct SceneModule<SceneModuleType::NAV_CAM> : SceneModuleBase
 
 };
 
-template<> struct SceneModule<SceneModuleType::PATH_TO> : SceneModuleBase
+template<> struct SceneModule<SceneModuleType::PATH_TO> : SceneModuleBase, SceneModuleDecoupler
 {
     
     static constexpr SceneModuleType ModuleType = SceneModuleType::PATH_TO;

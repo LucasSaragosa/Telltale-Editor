@@ -872,7 +872,7 @@ I32 ApplicationUI::Run(const std::vector<CommandLine::TaskArgument>& args)
                 if (_EditorRenderContext)
                 {
                     // UI RENDER CALLBACK
-                    Method<ApplicationUI, false, RenderFrame*>
+                    Method<ApplicationUI, MethodLockType::RAW, RenderFrame*>
                         callback(this, static_cast<void (ApplicationUI::*)(RenderFrame*)>(&ApplicationUI::_PerformUIRenderFiltered<_UIRenderFilter::FILTER_NONE, true>));
                     _EditorRenderContext->GetPostRenderMainThreadCallbacks().PushCallback(TTE_PROXY_PTR(&callback, FunctionBase));
 

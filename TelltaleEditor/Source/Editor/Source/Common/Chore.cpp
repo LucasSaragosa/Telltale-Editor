@@ -233,7 +233,7 @@ public:
 void Chore::GetRenderParameters(Vector3& bgColOut, CString& iconName) const
 {
     bgColOut = Vector3(107.0f / 255.0f, 184.0f / 255.0f, 219.0f / 255.0f);
-    // icon?
+    iconName = "Chore/Chore.png";
 }
 
 void Chore::AddToChore(const Ptr<Chore>& pChore, ChoreResource& resource)

@@ -638,14 +638,13 @@ void SceneModule<SceneModuleType::SELECTABLE>::SetGameSelectable(Bool onOff)
 
 void SceneModule<SceneModuleType::SELECTABLE>::OnSetupAgent(SceneAgent* pAgentGettingCreated)
 {
-
     Meta::ClassInstance props = pAgentGettingCreated->OwningScene->GetAgentProps(pAgentGettingCreated->NameSymbol);
 
-    PropertySet::AddCallback(props, kSelectableExtentsMin, ALLOCATE_METHOD_CALLBACK_1(this, SetExtentsMin,
+    PropertySet::AddCallback(props, kSelectableExtentsMin, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetExtentsMin,
         SceneModule<SceneModuleType::SELECTABLE>, Vector3), TRACKING_REF_SELECTABLE);
-    PropertySet::AddCallback(props, kSelectableExtentsMax, ALLOCATE_METHOD_CALLBACK_1(this, SetExtentsMax,
+    PropertySet::AddCallback(props, kSelectableExtentsMax, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetExtentsMax,
         SceneModule<SceneModuleType::SELECTABLE>, Vector3), TRACKING_REF_SELECTABLE);
-    PropertySet::AddCallback(props, kSelectableOnOff, ALLOCATE_METHOD_CALLBACK_1(this, SetGameSelectable,
+    PropertySet::AddCallback(props, kSelectableOnOff, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetGameSelectable,
         SceneModule<SceneModuleType::SELECTABLE>, Bool), TRACKING_REF_SELECTABLE);
     PropertySet::CallAllCallbacks(props, pAgentGettingCreated->OwningScene->GetRegistry());
 }
@@ -689,18 +688,17 @@ void SceneModule<SceneModuleType::ROLLOVER>::SetTextColour(Colour c)
 
 void SceneModule<SceneModuleType::ROLLOVER>::OnSetupAgent(SceneAgent* pAgentGettingCreated)
 {
-
     Meta::ClassInstance props = pAgentGettingCreated->OwningScene->GetAgentProps(pAgentGettingCreated->NameSymbol);
 
-    PropertySet::AddCallback(props, kRolloverText, ALLOCATE_METHOD_CALLBACK_1(this, SetText,
+    PropertySet::AddCallback(props, kRolloverText, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetText,
         SceneModule<SceneModuleType::ROLLOVER>, String), TRACKING_REF_ROLLOVER);
-    PropertySet::AddCallback(props, kRolloverCursorProps, ALLOCATE_METHOD_CALLBACK_1(this, SetCursorProps,
+    PropertySet::AddCallback(props, kRolloverCursorProps, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetCursorProps,
         SceneModule<SceneModuleType::ROLLOVER>, Symbol), TRACKING_REF_ROLLOVER);
-    PropertySet::AddCallback(props, kRolloverTextColour, ALLOCATE_METHOD_CALLBACK_1(this, SetTextColour,
+    PropertySet::AddCallback(props, kRolloverTextColour, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetTextColour,
         SceneModule<SceneModuleType::ROLLOVER>, Colour), TRACKING_REF_ROLLOVER);
-    PropertySet::AddCallback(props, kRolloverTextBackgroundColour, ALLOCATE_METHOD_CALLBACK_1(this,
+    PropertySet::AddCallback(props, kRolloverTextBackgroundColour, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence),
         SetTextBackground, SceneModule<SceneModuleType::ROLLOVER>, Colour), TRACKING_REF_ROLLOVER);
-    PropertySet::AddCallback(props, kRolloverMesh, ALLOCATE_METHOD_CALLBACK_1(this,
+    PropertySet::AddCallback(props, kRolloverMesh, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence),
         SetCursorMesh, SceneModule<SceneModuleType::ROLLOVER>, Symbol), TRACKING_REF_ROLLOVER);
     PropertySet::CallAllCallbacks(props, pAgentGettingCreated->OwningScene->GetRegistry());
 }
@@ -733,7 +731,7 @@ void SceneModule<SceneModuleType::DIALOG_CHOICE>::OnSetupAgent(SceneAgent *pAgen
 
     Meta::ClassInstance props = pAgentGettingCreated->OwningScene->GetAgentProps(pAgentGettingCreated->NameSymbol);
 
-    PropertySet::AddCallback(props, kDialogChoiceChoice, ALLOCATE_METHOD_CALLBACK_1(this, SetChoice,
+    PropertySet::AddCallback(props, kDialogChoiceChoice, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetChoice,
         SceneModule<SceneModuleType::DIALOG_CHOICE>, String), TRACKING_REF_DLG_CHOICE);
     PropertySet::CallAllCallbacks(props, pAgentGettingCreated->OwningScene->GetRegistry());
 }
@@ -765,9 +763,9 @@ void SceneModule<SceneModuleType::DIALOG>::OnSetupAgent(SceneAgent *pAgentGettin
 
     Meta::ClassInstance props = pAgentGettingCreated->OwningScene->GetAgentProps(pAgentGettingCreated->NameSymbol);
 
-    PropertySet::AddCallback(props, kDialogName, ALLOCATE_METHOD_CALLBACK_1(this, SetName,
+    PropertySet::AddCallback(props, kDialogName, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetName,
         SceneModule<SceneModuleType::DIALOG>, String), TRACKING_REF_DLG);
-    PropertySet::AddCallback(props, kDialogResource, ALLOCATE_METHOD_CALLBACK_1(this, SetResource,
+    PropertySet::AddCallback(props, kDialogResource, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetResource,
         SceneModule<SceneModuleType::DIALOG>, Symbol), TRACKING_REF_DLG);
     PropertySet::CallAllCallbacks(props, pAgentGettingCreated->OwningScene->GetRegistry());
 }
@@ -799,9 +797,9 @@ void SceneModule<SceneModuleType::WALK_ANIMATOR>::OnSetupAgent(SceneAgent *pAgen
 
     Meta::ClassInstance props = pAgentGettingCreated->OwningScene->GetAgentProps(pAgentGettingCreated->NameSymbol);
 
-    PropertySet::AddCallback(props, kWalkAnimatorIdleAnimation, ALLOCATE_METHOD_CALLBACK_1(this, SetIdleAnim,
+    PropertySet::AddCallback(props, kWalkAnimatorIdleAnimation, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetIdleAnim,
         SceneModule<SceneModuleType::WALK_ANIMATOR>, Symbol), TRACKING_REF_WANIM);
-    PropertySet::AddCallback(props, kWalkAnimatorForwardAnimation, ALLOCATE_METHOD_CALLBACK_1(this, SetForwardAnim,
+    PropertySet::AddCallback(props, kWalkAnimatorForwardAnimation, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetForwardAnim,
         SceneModule<SceneModuleType::WALK_ANIMATOR>, Symbol), TRACKING_REF_WANIM);
     PropertySet::CallAllCallbacks(props, pAgentGettingCreated->OwningScene->GetRegistry());
 }
@@ -838,11 +836,11 @@ void SceneModule<SceneModuleType::TRIGGER>::OnSetupAgent(SceneAgent *pAgentGetti
 
     Meta::ClassInstance props = pAgentGettingCreated->OwningScene->GetAgentProps(pAgentGettingCreated->NameSymbol);
 
-    PropertySet::AddCallback(props, kTriggerEnabled, ALLOCATE_METHOD_CALLBACK_1(this, SetOnOff,
+    PropertySet::AddCallback(props, kTriggerEnabled, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetOnOff,
         SceneModule<SceneModuleType::TRIGGER>, Bool), TRACKING_REF_TRIGGER);
-    PropertySet::AddCallback(props, kTriggerEnterCallback, ALLOCATE_METHOD_CALLBACK_1(this, SetEnterCallback,
+    PropertySet::AddCallback(props, kTriggerEnterCallback, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetEnterCallback,
         SceneModule<SceneModuleType::TRIGGER>, String), TRACKING_REF_TRIGGER);
-    PropertySet::AddCallback(props, kTriggerExitCallback, ALLOCATE_METHOD_CALLBACK_1(this, SetExitCallback,
+    PropertySet::AddCallback(props, kTriggerExitCallback, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetExitCallback,
         SceneModule<SceneModuleType::TRIGGER>, String), TRACKING_REF_TRIGGER);
     PropertySet::CallAllCallbacks(props, pAgentGettingCreated->OwningScene->GetRegistry());
 }
@@ -919,27 +917,27 @@ void SceneModule<SceneModuleType::NAV_CAM>::OnSetupAgent(SceneAgent *pAgentGetti
 
     Meta::ClassInstance props = pAgentGettingCreated->OwningScene->GetAgentProps(pAgentGettingCreated->NameSymbol);
 
-    PropertySet::AddCallback(props, kNavCamOrbitMin, ALLOCATE_METHOD_CALLBACK_1(this, SetOrbitMin,
+    PropertySet::AddCallback(props, kNavCamOrbitMin, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetOrbitMin,
         SceneModule<SceneModuleType::NAV_CAM>, Polar), TRACKING_REF_NAV_CAM);
-    PropertySet::AddCallback(props, kNavCamOrbitMax, ALLOCATE_METHOD_CALLBACK_1(this, SetOrbitOffset,
+    PropertySet::AddCallback(props, kNavCamOrbitMax, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetOrbitOffset,
         SceneModule<SceneModuleType::NAV_CAM>, Polar), TRACKING_REF_NAV_CAM);
-    PropertySet::AddCallback(props, kNavCamOrbitOffset, ALLOCATE_METHOD_CALLBACK_1(this, SetOrbitMax,
+    PropertySet::AddCallback(props, kNavCamOrbitOffset, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetOrbitMax,
         SceneModule<SceneModuleType::NAV_CAM>, Polar), TRACKING_REF_NAV_CAM);
-    PropertySet::AddCallback(props, kNavCamTargetAgent, ALLOCATE_METHOD_CALLBACK_1(this, SetTargetAgent,
+    PropertySet::AddCallback(props, kNavCamTargetAgent, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetTargetAgent,
         SceneModule<SceneModuleType::NAV_CAM>, String), TRACKING_REF_NAV_CAM);
-    PropertySet::AddCallback(props, kNavCamTargetOffset, ALLOCATE_METHOD_CALLBACK_1(this, SetTargetOffset,
+    PropertySet::AddCallback(props, kNavCamTargetOffset, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetTargetOffset,
         SceneModule<SceneModuleType::NAV_CAM>, Vector3), TRACKING_REF_NAV_CAM);
-    PropertySet::AddCallback(props, kNavCamAnimation, ALLOCATE_METHOD_CALLBACK_1(this, SetAnimationFile,
+    PropertySet::AddCallback(props, kNavCamAnimation, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetAnimationFile,
         SceneModule<SceneModuleType::NAV_CAM>, Symbol), TRACKING_REF_NAV_CAM);
-    PropertySet::AddCallback(props, kNavCamAnimationTime, ALLOCATE_METHOD_CALLBACK_1(this, SetAnimationTime,
+    PropertySet::AddCallback(props, kNavCamAnimationTime, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetAnimationTime,
         SceneModule<SceneModuleType::NAV_CAM>, Float), TRACKING_REF_NAV_CAM);
-    PropertySet::AddCallback(props, kNavCamDampen, ALLOCATE_METHOD_CALLBACK_1(this, SetDampen,
+    PropertySet::AddCallback(props, kNavCamDampen, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetDampen,
         SceneModule<SceneModuleType::NAV_CAM>, Float), TRACKING_REF_NAV_CAM);
-    PropertySet::AddCallback(props, kNavCamTriggerHPercent, ALLOCATE_METHOD_CALLBACK_1(this, SetTriggerHPercent,
+    PropertySet::AddCallback(props, kNavCamTriggerHPercent, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetTriggerHPercent,
         SceneModule<SceneModuleType::NAV_CAM>, Float), TRACKING_REF_NAV_CAM);
-    PropertySet::AddCallback(props, kNavCamTriggerVPercent, ALLOCATE_METHOD_CALLBACK_1(this, SetTriggerVPercent,
+    PropertySet::AddCallback(props, kNavCamTriggerVPercent, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetTriggerVPercent,
         SceneModule<SceneModuleType::NAV_CAM>, Float), TRACKING_REF_NAV_CAM);
-    PropertySet::AddCallback(props, kNavCamMode, ALLOCATE_METHOD_CALLBACK_1(this, SetMode,
+    PropertySet::AddCallback(props, kNavCamMode, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence), SetMode,
         SceneModule<SceneModuleType::NAV_CAM>, Enum<NavCamMode>), TRACKING_REF_NAV_CAM);
     PropertySet::CallAllCallbacks(props, pAgentGettingCreated->OwningScene->GetRegistry());
 }
@@ -965,7 +963,7 @@ void SceneModule<SceneModuleType::PATH_TO>::OnSetupAgent(SceneAgent *pAgentGetti
 {
 
     Meta::ClassInstance props = pAgentGettingCreated->OwningScene->GetAgentProps(pAgentGettingCreated->NameSymbol);
-    PropertySet::AddCallback(props, kPathToWalkRadius, ALLOCATE_METHOD_CALLBACK_1(this,
+    PropertySet::AddCallback(props, kPathToWalkRadius, ALLOCATE_METHOD_CALLBACK_1(CALLBACK_DECOUPLED(this, Fence),
             SetWalkRadius, SceneModule<SceneModuleType::PATH_TO>, Float), TRACKING_REF_PATHTO);
     PropertySet::CallAllCallbacks(props, pAgentGettingCreated->OwningScene->GetRegistry());
 }

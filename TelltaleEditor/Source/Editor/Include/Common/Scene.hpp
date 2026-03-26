@@ -29,7 +29,7 @@ class EditorUI;
 struct Node;
 struct SceneAgent;
 struct SceneMessage;
-struct RenderFrame;
+struct RenderFrame; 
 enum class SceneMessageType : U32;
 
 // ========================================= OBJECT MANAGER =========================================

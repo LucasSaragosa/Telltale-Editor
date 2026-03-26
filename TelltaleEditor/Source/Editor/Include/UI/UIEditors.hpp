@@ -164,7 +164,7 @@ struct UIResourceEditorRuntimeData
 
 template<>
 struct UIResourceEditorRuntimeData<I32> {}; // PROP, has its own.
-
+ 
 // CHORE
 template<>
 struct UIResourceEditorRuntimeData<Chore> : MenuOptionInterface
