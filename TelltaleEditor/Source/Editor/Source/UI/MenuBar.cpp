@@ -1,4 +1,5 @@
 #include <UI/ApplicationUI.hpp>
+#include <UI/UIEditors.hpp>
 #include <nfd.h>
 #include <imgui.h>
 
@@ -38,6 +39,39 @@ static Bool _AsyncScriptExec(const JobThread& thread, void* userA, void* userB)
     return bResult;
 }
 
+void MenuBar::_OnExportOpen(String file)
+{
+    nfdchar_t* op=0;
+    if(NFD_PickFolder(0, &op, 0) == NFD_OKAY)
+    {
+        String folder = (CString)op;
+        if(!StringEndsWith(folder, "/") && !StringEndsWith(folder, "\\"))
+            folder += "/";
+        free(op);
+        CString error = "The output json file could not be opened!";
+        DataStreamRef out = DataStreamManager::GetInstance()->CreateFileStream(folder + file + ".json");
+        if(out)
+        {
+            error = "The requested meta stream file could not be opened!";
+            DataStreamRef stream = GetApplication().GetRegistry()->FindResource(file);
+            if(stream)
+            {
+                error = "The file could not be read at the moment. Check the logs!";
+                if(Meta::ReadMetaStream(file, stream, out))
+                    error = nullptr;
+            }
+        }
+        if(error)
+        {
+            PlatformMessageBoxAndWait("Could not export to JSON", error);
+        }
+        else
+        {
+            TTE_LOG("Dumped JSON for meta stream successfully for %s", file.c_str());
+        }
+    }
+}
+
 Bool MenuBar::Render()
 {
 
@@ -55,6 +89,7 @@ Bool MenuBar::Render()
             {
                 _Editor.UserRequestOpenFile();
             }
+            AddMenuOptions("File");
             // New, Open File, Open
             ImGui::EndMenu();
         }
@@ -113,6 +148,13 @@ Bool MenuBar::Render()
     // USER SETTINGS, CONVERT, LOCALIZATIONS, UPDATE PREFERENCES, PACKAGES, WIZARDS,
     // CREATE ARM FILES, .., SAVE GAME, LOAD GAME, QUIT
     
+    if(TestMenuOption("File", "Open and Export to JSON", "CTRL + SHIFT + O", ImGuiKey_O, true, true))
+    {
+        if(!GetApplication()._ActivePopup)
+        {
+            GetApplication().SetCurrentPopup(TTE_NEW_PTR(ResourcePickerPopup, MEMORY_TAG_EDITOR_UI, "Pick file for JSON export", "*", ALLOCATE_METHOD_CALLBACK_1(this, _OnExportOpen, MenuBar, String)), _Editor);
+        }
+    }
     if(TestMenuOption("Game", "Switch Project", "", 0, false, false))
     {
         GetApplication()._Flags.Add(ApplicationFlag::WANT_SWITCH_PROJECT);

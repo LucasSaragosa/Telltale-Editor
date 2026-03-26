@@ -416,7 +416,7 @@ Bool FileView::_Update(Ptr<ResourceRegistry> pRegistry, I32 overrideIndex)
     U64 now = GetTimeStamp();
     if(overrideIndex == -1)
     {
-        if (GetTimeStampDifference(_Group[_CurGroup].UpdateStamp, now) > 3.0f)
+        if (GetTimeStampDifference(_Group[_CurGroup].UpdateStamp, now) > 10.0f)
         {
             _Group[_CurGroup].UpdateStamp = now;
             _Group[_CurGroup].Entries.clear();

@@ -66,27 +66,33 @@ public:
             }
             else if(key == "NoPose")
             {
-                resource.ResFlags.Add(Chore::Resource::NO_POSE);
+                if(man.ToBool(it.ValueIndex()))
+                    resource.ResFlags.Add(Chore::Resource::NO_POSE);
             }
             else if(key == "Enabled")
             {
-                resource.ResFlags.Add(Chore::Resource::ENABLED);
+                if(man.ToBool(it.ValueIndex()))
+                    resource.ResFlags.Add(Chore::Resource::ENABLED);
             }
             else if(key == "AgentResource")
             {
-                resource.ResFlags.Add(Chore::Resource::AGENT_RESOURCE);
+                if(man.ToBool(it.ValueIndex()))
+                    resource.ResFlags.Add(Chore::Resource::AGENT_RESOURCE);
             }
             else if(key == "ViewGraphs")
             {
-                resource.ResFlags.Add(Chore::Resource::VIEW_GRAPHS);
+                if(man.ToBool(it.ValueIndex()))
+                    resource.ResFlags.Add(Chore::Resource::VIEW_GRAPHS);
             }
             else if(key == "ViewProps")
             {
-                resource.ResFlags.Add(Chore::Resource::VIEW_PROPERTIES);
+                if(man.ToBool(it.ValueIndex()))
+                    resource.ResFlags.Add(Chore::Resource::VIEW_PROPERTIES);
             }
             else if(key == "ViewInclude")
             {
-                resource.ResFlags.Add(Chore::Resource::VIEW_GROUPS);
+                if(man.ToBool(it.ValueIndex()))
+                    resource.ResFlags.Add(Chore::Resource::VIEW_GROUPS);
             }
             else if(key == "Embed")
             {
@@ -226,7 +232,7 @@ public:
 
 void Chore::GetRenderParameters(Vector3& bgColOut, CString& iconName) const
 {
-    bgColOut = Vector3(217.0f / 255.0f, 203.0f / 255.0f, 124.0f / 255.0f);
+    bgColOut = Vector3(107.0f / 255.0f, 184.0f / 255.0f, 219.0f / 255.0f);
     // icon?
 }
 

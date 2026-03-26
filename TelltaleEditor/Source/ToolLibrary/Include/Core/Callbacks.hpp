@@ -380,7 +380,7 @@ struct _MethodImplBaseSelector<Ptr<Object>>
     static constexpr Bool _MyChecked = true;
 };
 
-#define CALLBACK_TEST_CHECKED(PtrObj) _MethodImplBaseSelector<std::decay<decltype(PtrObj)>::type>::_MyChecked
+#define CALLBACK_TEST_CHECKED(PtrObj) _MethodImplBaseSelector<typename std::decay<decltype(PtrObj)>::type>::_MyChecked
 
 template <typename T>
 struct _MethodFnTraits;

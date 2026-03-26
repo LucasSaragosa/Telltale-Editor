@@ -14,5 +14,9 @@ public:
     MenuBar(EditorUI& ui);
 
     virtual Bool Render() final override;
+    
+protected:
+    
+    void _OnExportOpen(String file);
 
 };

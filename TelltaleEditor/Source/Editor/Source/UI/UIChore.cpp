@@ -309,9 +309,9 @@ Bool UIResourceEditor<Chore>::RenderEditor()
                     ImGui::EndMenu();
                 }
                 // blocking anims for moving agents around manually
-                if(ImGui::BeginMenu("Add Blocking"))
+                if(ImGui::MenuItem("Add Blocking Animation"))
                 {
-
+                    
                 }
                 // OTHER RESOURCE
                 ImGui::EndMenu();
@@ -678,6 +678,7 @@ Bool UIResourceEditor<Chore>::RenderEditor()
                 I32 resourceIndex = 0;
                 for(const auto& resIndex: agent.Resources)
                 {
+                    MetaOperationsBucket_ChoreResource _dummyAgentResourceBucket{};
                     Ptr<MetaOperationsBucket_ChoreResource> resourceInterface{};
                     ImGui::PushID(runningID++);
                     Chore::Resource& resource = pChore->_Resources[resIndex];
@@ -691,58 +692,67 @@ Bool UIResourceEditor<Chore>::RenderEditor()
                     else
                     {
                         Bool bEmbed = resource.ResFlags.Test(Chore::Resource::EMBEDDED);
-                        if(bEmbed)
+                        Bool bAgentResource = resource.ResFlags.Test(Chore::Resource::AGENT_RESOURCE);
+                        if(bAgentResource)
                         {
-                            resourceInterface = resource.Embed;
-                            bFail = resourceInterface == nullptr;
-                            if(bFail && FailedResources.find(resource.Name) == FailedResources.end())
-                            {
-                                FailedResources.insert(resource.Name);
-                                TTE_LOG("ERROR: Embedded chore resource '%s' for chore '%s' is empty!", resource.Name.c_str(), pChore->_Name.c_str());
-                            }
-                            else if(resourceInterface != nullptr && rcacheIterator == ResourcesCache.end())
-                            {
-                                ResourcesCache[resource.Name] = resourceInterface;
-                            }
+                            // dummy. agent resource directly maps to the scene agent itself, control anim etc
+                            resourceInterface = TTE_PROXY_PTR(&_dummyAgentResourceBucket, MetaOperationsBucket_ChoreResource);
                         }
-                        else if (rcacheIterator == ResourcesCache.end())
+                        else
                         {
-                            if (FailedResources.find(resource.Name) != FailedResources.end())
-                                bFail = true;
-                            else
+                            if(bEmbed)
                             {
-                                WeakPtr<MetaOperationsBucket_ChoreResource> pResource =
-                                    AbstractMetaOperationsBucket::CreateBucketReference<MetaOperationsBucket_ChoreResource>(GetApplication().GetRegistry(), resource.Name, false);
-                                if (pResource.lock())
+                                resourceInterface = resource.Embed;
+                                bFail = resourceInterface == nullptr;
+                                if(bFail && FailedResources.find(resource.Name) == FailedResources.end())
                                 {
-                                    ResourcesCache[resource.Name] = std::move(pResource);
-                                }
-                                else
-                                {
-                                    bFail = true;
                                     FailedResources.insert(resource.Name);
-                                    TTE_LOG("ERROR: Chore resource '%s' for chore '%s' could not be loaded/found, or is not a chore resource operations bucket yet!", resource.Name.c_str(), pChore->_Name.c_str());
+                                    TTE_LOG("ERROR: Embedded chore resource '%s' for chore '%s' is empty!", resource.Name.c_str(), pChore->_Name.c_str());
+                                }
+                                else if(resourceInterface != nullptr && rcacheIterator == ResourcesCache.end())
+                                {
+                                    ResourcesCache[resource.Name] = resourceInterface;
                                 }
                             }
-                        }
-                        if (!bFail && !bEmbed)
-                        {
-                            if (rcacheIterator == ResourcesCache.end())
-                                rcacheIterator = ResourcesCache.find(resource.Name);
-                            if (rcacheIterator == ResourcesCache.end() || rcacheIterator->second.expired())
+                            else if (rcacheIterator == ResourcesCache.end())
                             {
-                                WeakPtr<MetaOperationsBucket_ChoreResource> pResource =
-                                    AbstractMetaOperationsBucket::CreateBucketReference<MetaOperationsBucket_ChoreResource>(GetApplication().GetRegistry(), resource.Name, false);
-                                if (pResource.lock())
-                                {
-                                    rcacheIterator->second = std::move(pResource);
-                                }
+                                if (FailedResources.find(resource.Name) != FailedResources.end())
+                                    bFail = true;
                                 else
                                 {
-                                    bFail = true;
-                                    if(rcacheIterator != ResourcesCache.end())
-                                        ResourcesCache.erase(rcacheIterator);
-                                    TTE_LOG("WARNING: Chore resource '%s' was unloaded and could not be reloaded! Disabling this resource...", resource.Name.c_str(), pChore->_Name.c_str());
+                                    WeakPtr<MetaOperationsBucket_ChoreResource> pResource =
+                                    AbstractMetaOperationsBucket::CreateBucketReference<MetaOperationsBucket_ChoreResource>(GetApplication().GetRegistry(), resource.Name, false);
+                                    if (pResource.lock())
+                                    {
+                                        ResourcesCache[resource.Name] = std::move(pResource);
+                                    }
+                                    else
+                                    {
+                                        bFail = true;
+                                        FailedResources.insert(resource.Name);
+                                        TTE_LOG("ERROR: Chore resource '%s' for chore '%s' could not be loaded/found, or is not a chore resource operations bucket yet!", resource.Name.c_str(), pChore->_Name.c_str());
+                                    }
+                                }
+                            }
+                            if (!bFail && !bEmbed)
+                            {
+                                if (rcacheIterator == ResourcesCache.end())
+                                    rcacheIterator = ResourcesCache.find(resource.Name);
+                                if (rcacheIterator == ResourcesCache.end() || rcacheIterator->second.expired())
+                                {
+                                    WeakPtr<MetaOperationsBucket_ChoreResource> pResource =
+                                    AbstractMetaOperationsBucket::CreateBucketReference<MetaOperationsBucket_ChoreResource>(GetApplication().GetRegistry(), resource.Name, false);
+                                    if (pResource.lock())
+                                    {
+                                        rcacheIterator->second = std::move(pResource);
+                                    }
+                                    else
+                                    {
+                                        bFail = true;
+                                        if(rcacheIterator != ResourcesCache.end())
+                                            ResourcesCache.erase(rcacheIterator);
+                                        TTE_LOG("WARNING: Chore resource '%s' was unloaded and could not be reloaded! Disabling this resource...", resource.Name.c_str(), pChore->_Name.c_str());
+                                    }
                                 }
                             }
                         }

@@ -130,7 +130,10 @@ public:
     static void AddMethodCallbackT(Meta::ClassInstance prop, Symbol property, ClsObj obj, MemFn memFn, U32 trackRef = 0)
     {
         using _MyTraits = _MethodFnTraits<MemFn>; using C = typename _MyTraits::_Clz; using A = typename _MyTraits::_ArgT;
-        AddCallback(prop, property, TTE_NEW_PTR(Method<C MACRO_COMMA CALLBACK_TEST_CHECKED(obj) MACRO_COMMA A>, MEMORY_TAG_CALLBACK, obj, memFn), trackRef);
+        static constexpr Bool _IsChecked = CALLBACK_TEST_CHECKED(obj);
+        using _MethodT = Method<C MACRO_COMMA _IsChecked MACRO_COMMA A>;
+        auto cb = TTE_NEW_PTR(_MethodT, MEMORY_TAG_CALLBACK, obj, memFn);
+        AddCallback(prop, property, cb, trackRef);
     }
     
     /**

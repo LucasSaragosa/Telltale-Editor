@@ -65,19 +65,19 @@ public:
     /**
      * Gets the rendering information for rendering this chore resource in the Chore editor.
      */
-    virtual void GetRenderParameters(Vector3& bgColourOut, CString& iconName) const = 0;
+    inline virtual void GetRenderParameters(Vector3& bgColourOut, CString& iconName) const {}
 
     /**
      * Gets the length of this chore resource.
      * Corresponding operator: MetaOperation_GetLength
      */
-    virtual Float GetLength() const = 0;
+    inline virtual Float GetLength() const { return 0.0f; }
     
     /**
      Adds this chore resource to a chore. For animations, this can add contribution + time keyframed value graphs
      Corresponding operator: MetaOperation_AddToChore
      */
-    virtual void AddToChore(const Ptr<Chore>& pChore, ChoreResource& resource) = 0;
+    inline virtual void AddToChore(const Ptr<Chore>& pChore, ChoreResource& resource) {}
 
     /**
      * Attaches this resource to the given chore at runtime. For procedural look ats for example, this links callbacks between

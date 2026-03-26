@@ -672,7 +672,7 @@ I32 ApplicationUI::Run(const std::vector<CommandLine::TaskArgument>& args)
     // TEST STARTUP PROJECT
     if (!projPath.empty() && _ProjectMgr.SetProjectDisk(projPath))
     {
-        _Window = SDL_CreateWindow(titleBar, DEFAULT_WINDOW_SIZE, 0);
+        _Window = SDL_CreateWindow(titleBar, DEFAULT_WINDOW_SIZE, SDL_WINDOW_HIGH_PIXEL_DENSITY);
         SDL_SetWindowPosition(_Window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
         SDL_ShowWindow(_Window);
         TTE_LOG("Launching project at %s", projPath.c_str());
@@ -684,7 +684,7 @@ I32 ApplicationUI::Run(const std::vector<CommandLine::TaskArgument>& args)
         U32 wW = 0, wH = 0;
         Ptr<UIProjectSelect> pSelect = TTE_NEW_PTR(UIProjectSelect, MEMORY_TAG_EDITOR_UI, *this);
         pSelect->GetWindowSize(wW, wH);
-        _Window = SDL_CreateWindow(titleBar, wW, wH, SDL_WINDOW_HIDDEN);
+        _Window = SDL_CreateWindow(titleBar, wW, wH, SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY);
         SDL_SetWindowPosition(_Window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
         SDL_SetWindowMinimumSize(_Window, 340, 250);
         SDL_ShowWindow(_Window);

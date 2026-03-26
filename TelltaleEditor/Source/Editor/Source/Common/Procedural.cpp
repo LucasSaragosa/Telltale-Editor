@@ -19,7 +19,8 @@ public:
         look->_HostNode = man.ToString(2);
         look->_TargetAgent = man.ToString(3);
         look->_TargetNode = man.ToString(4);
-        Meta::ExtractCoercableInstance<Vector3>(look->_TargetOffset, Meta::AcquireScriptInstance(man, 5));
+        Meta::ClassInstance vec = Meta::AcquireScriptInstance(man, 5);
+        Meta::ExtractCoercableInstance<Vector3>(look->_TargetOffset, vec);
         return 0;
     }
     

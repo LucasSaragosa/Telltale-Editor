@@ -135,7 +135,7 @@ public:
         return SymbolTable::Find(_ResourceName);
     }
     
-    inline Ptr<Handleable> GetBlindObject(Ptr<ResourceRegistry>& registry, Bool bEnsureLoaded)
+    inline Ptr<Handleable> GetBlindObject(Ptr<ResourceRegistry> registry, Bool bEnsureLoaded)
     {
         if (bEnsureLoaded)
             EnsureIsLoaded(registry);
