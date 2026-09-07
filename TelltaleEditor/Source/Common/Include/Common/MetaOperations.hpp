@@ -90,9 +90,4 @@ public:
      */
     inline virtual void Attach(const Ptr<Chore>& pChore, ChoreResource& resource) {}
 
-    /**
-     * Renders the chore track after drawing the background render parameters. Draw within the region specified.
-     */
-    inline virtual void RenderChoreTrack(EditorUI& editor, UIResourceEditorRuntimeData<Chore>& ui) {} // TODO
-
 };

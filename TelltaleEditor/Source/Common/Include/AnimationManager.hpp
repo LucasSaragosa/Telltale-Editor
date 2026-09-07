@@ -1,19 +1,18 @@
 #pragma once
 
 #include <Core/Config.hpp>
-#include <Core/Context.hpp>
-
 #include <Common/Animation.hpp>
 #include <Common/Skeleton.hpp>
 #include <Common/Scene.hpp>
 #include <Resource/ResourceRegistry.hpp>
-#include <Symbols.hpp>
+#include <Core/Callbacks.hpp>
 
 #include <unordered_map>
+#include <memory>
 
 // ANIMATION MANAGER => CORE TYPES AND PROVIDES ANIMATION FUNCTIONALITY: BOTH ANMS AND CHORES
 
-class PlaybackController
+class PlaybackController : public std::enable_shared_from_this<PlaybackController>
 {
     
     enum class Flag
@@ -94,6 +93,11 @@ public:
     void SetMirrored(Bool bMirrored);
     
     Float GetLength() const;
+
+    inline Callbacks& GetCompletionCallbacks()
+    {
+        return _PlaybackCompletionCallbacks;
+    }
     
 private:
     
@@ -107,8 +111,9 @@ private:
     Float _Contribution = 1.0f; // current contribution. can be used to fade.
     Float _TimeScale = 1.0f;
     Float _AdditiveMix = 1.0f;
+
+    Callbacks _PlaybackCompletionCallbacks;
     
-    Ptr<PlaybackController> _Next;
     Scene* _Scene;
     
     friend class AnimationManager;
@@ -134,11 +139,9 @@ public:
     AnimationManager();
     ~AnimationManager();
     
-    Ptr<PlaybackController> FindAnimation(const String& name); // find running animation by name
-    
     /*
      Prepares an animation, returning the playback controller for it. The attached agent will be played on.
-     Ensure to call Play to actually play it.
+     Ensure to call Play to actually play     it.
      */
     Ptr<PlaybackController> ApplyAnimation(Scene* scene, Ptr<Animation> pAnimation);
     
@@ -153,7 +156,6 @@ private:
     void _SetNode(Ptr<Node>& node);
     
     WeakPtr<Node> _AttachedNode;
-    std::vector<Ptr<PlaybackController>> _Controllers;
     
     friend class Scene;
     
@@ -194,9 +196,9 @@ public:
     SkeletonInstance() = default;
     ~SkeletonInstance();
     
-    SklNode* GetNode(const String& name);
+    Ptr<SklNode> GetNode(const String& name);
     
-    RuntimeSklNode* GetAddRuntimeNode(const String& name, Bool bCreate);
+    Ptr<RuntimeSklNode> GetAddRuntimeNode(const String& name, Bool bCreate);
     
     void SortRuntimeNodes();
     
@@ -214,7 +216,7 @@ private:
     
     void _UpdateAnimation(U64 frameNumber);
     
-    void _UpdateNode(SklNode& node, const Transform& value, const Transform& additiveValue, Float vecContrib, Float quatContrib, Bool bAdditive);
+    void _UpdateNode(const Ptr<SklNode>& node, const Transform& value, const Transform& additiveValue, Float vecContrib, Float quatContrib, Bool bAdditive);
     
     void _ApplySkeletonInstanceRestPose(Scene* pScene, Ptr<Node>& rootNode, I32 nodeIndex);
     
@@ -228,8 +230,8 @@ private:
     
     Ptr<Skeleton> _Skeleton;
     Ptr<Node> _RootNode;
-    std::vector<SklNode> _Nodes; // flat. CANNOT BE UPDATED UNLESS IN BUILD.
-    std::vector<RuntimeSklNode> _RuntimeNodes;
+    std::vector<Ptr<SklNode>> _Nodes; // flat. CANNOT BE UPDATED UNLESS IN BUILD.
+    std::vector<Ptr<RuntimeSklNode>> _RuntimeNodes;
     U64 _LastUpdatedFrame = UINT64_MAX;
     Matrix4* _CurrentPose = nullptr; // current frame pose final transforms for each bone
     

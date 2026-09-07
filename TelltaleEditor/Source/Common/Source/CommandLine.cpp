@@ -66,19 +66,12 @@ namespace CommandLine
         DataStreamFile fileStream(ofile);
         Bool excludeLib = HasArgument(args, "-exclude-tte-lib");
         docs << "-- Telltale Editor generated Lua documentation. Using v" TTE_VERSION "\n\n\n";
-        _DumpCollection(luaGameEngine(false), docs);
         if(!excludeLib)
         {
-            LuaFunctionCollection PropKonst{};
-            for (const auto& prop : GetPropKeyConstants())
-            {
-                PUSH_GLOBAL_S(PropKonst, prop.first, prop.second, "Telltale Property Keys");
-            }
             RegisterCommonClassInfo(); // done in TT ctor so manually here too
-            _DumpCollection(PropKonst, docs);
-            _DumpCollection(luaLibraryAPI(false), docs);
-            _DumpCollection(CreateScriptAPI(), docs);
         }
+        const LuaScriptCollectionBitSet functionsToInclude = excludeLib ? ScriptCollection_OnlyEngine : LuaScriptCollectionBitSet::All();
+        _DumpCollection(TelltaleEditor::GetLuaRegistry(functionsToInclude, false), docs);
         String s = docs.str();
         fileStream.Write((const U8*)s.c_str(), s.length());
         printf("** Dumped Lua documentation to %s!", ofile.c_str());
@@ -106,7 +99,7 @@ namespace CommandLine
     
     static I32 Executor_Usage(const std::vector<TaskArgument>& args)
     {
-        std::vector<TaskInfo> tasks = CreateTasks();
+        std::vector<TaskInfo> tasks = CreateTasks(nullptr);
         printf("\n******** Telltale Editor v" TTE_VERSION "\n**\n**\n** Run with no command "
                "line arguments to run the normal editor in your current directory.\n"
                "**\n**\n** Otherwise, choose from any of the options below\n** You can execute "
@@ -490,7 +483,7 @@ namespace CommandLine
     
     // ===================== DEFAULT =====================
     
-    std::vector<TaskInfo> CreateTasks()
+    std::vector<TaskInfo> CreateTasks(TaskExecutor* mainExecDelegate)
     {
         std::vector<TaskInfo> tasks{};
         
@@ -583,7 +576,7 @@ namespace CommandLine
         
         {
             auto& task = tasks.emplace_back(TaskInfo{"run", "Runs the Telltale Editor application. Optionally pass in the user directory for your workspace, or project file path to load."
-                " You can also pass in the file resource location (or just file name) to open on startup after project selection.", &Executor_Editor});
+                " You can also pass in the file resource location (or just file name) to open on startup after project selection.", mainExecDelegate});
             task.OptionalArguments.push_back({ "-userdir",ArgumentType::STRING, {"-cwd"} });
             task.OptionalArguments.push_back({ "-project",ArgumentType::STRING, {"-p","-proj"} });
             task.OptionalArguments.push_back({ "-file",ArgumentType::STRING, {"-f","-open"} });
@@ -835,11 +828,11 @@ namespace CommandLine
         return args;
     }
     
-    I32 GuardedMain(int argc, char** argv)
+    I32 GuardedMain(int argc, char** argv, TaskExecutor* mainDelegate)
     {
         struct _PadOnDestruct {~_PadOnDestruct() {printf("\n");}} _{};
         printf("\n"); // Some consoles print some garbage without terminator. Skip that.
-        std::vector<TaskInfo> tasks = CreateTasks();
+        std::vector<TaskInfo> tasks = CreateTasks(mainDelegate);
         std::vector<String> argsStack = ParseArgsStack(argc, argv);
         if(argsStack.size() == 0)
         {

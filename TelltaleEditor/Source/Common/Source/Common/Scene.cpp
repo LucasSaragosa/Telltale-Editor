@@ -1,10 +1,11 @@
 #include <Common/Scene.hpp>
-#include <Renderer/RenderContext.hpp>
 #include <Core/Callbacks.hpp>
 #include <Symbols.hpp>
 #include <TelltaleEditor.hpp>
+#include <AnimationManager.hpp>
 
 #include <cfloat>
+#include <vector>
 
 class SceneAPI
 {
@@ -513,8 +514,13 @@ void Scene::_SetupAgentProperties(Ptr<SceneAgent> pAgent, Meta::ClassInstance sc
         PropertySet::ImportKeysValuesAndParents(agentProps = pAgent->AgentProps.GetObject(GetRegistry(), true), sceneProps, false, true, {}, true, false, GetRegistry());
     }
     pAgent->RuntimeProps.SetObject(RuntimePropsName);
-    Meta::ClassInstance runtimeProps = pAgent->RuntimeProps.GetObject(GetRegistry(), true);
-    if(!runtimeProps)
+    Bool runtimeExists = pAgent->RuntimeProps.Exists(GetRegistry());
+    Meta::ClassInstance runtimeProps{};
+    if (runtimeExists)
+    {
+        runtimeProps = pAgent->RuntimeProps.GetObject(GetRegistry(), true);
+    }
+    else
     {
         runtimeProps = _MyContext->CreatePropertySet();
         GetRegistry()->CreateCachedPropertySet(RuntimePropsName, runtimeProps);
@@ -1022,6 +1028,65 @@ Scene::Scene(const Scene& rhs) : HandleableRegistered(rhs), Name(rhs.Name), _Fla
     SceneModuleUtil::PerformRecursiveModuleOperation(SceneModuleUtil::ModuleRange::ALL,
                                                      SceneModuleUtil::_ModulesUpdateSceneChange{ *this });
 }
+
+void Scene::UpdateTick(Float secsElapsed, U64 frame)
+{
+    // Update PBs
+    std::vector<Ptr<PlaybackController>> toRemoveDetached{};
+    for(const auto& controller: _Controllers)
+    {
+        Ptr<PlaybackController> pController = controller->shared_from_this();
+        if(pController)
+        {
+            if(pController->IsActive())
+            {
+                pController->Advance(secsElapsed);
+            } // else will be removed when its forgotten, unless its a strong ref
+            else
+            {
+                auto it = _DetachedControllers.find(pController);
+                if(it != _DetachedControllers.end())
+                {
+                    toRemoveDetached.push_back(pController);
+                }
+            }
+        }
+    }
+    for(const auto& rem: toRemoveDetached)
+    {
+        _DetachedControllers.erase(rem);
+    }
+
+
+    // Update Animation managers
+    Flags value{};
+    value.Set(AnimationManagerApplyMask::ALL, true);
+    for(auto& manager : _AnimationMgrs)
+    {
+        manager->UpdateAnimation(frame, value, secsElapsed);
+    }
+
+}
+
+Ptr<PlaybackController> Scene::PlayAnimation(const Symbol& agentName, Ptr<Animation> pAnim, Bool detached)
+{
+    for (auto& agent : _Agents)
+    {
+        if (agent.second->NameSymbol == agentName)
+        {
+            AnimationManager* pManager = agent.second->AgentNode->GetObjData<AnimationManager>("", true);
+            pManager->_SetNode(agent.second->AgentNode);
+            auto controller = pManager->ApplyAnimation(this, std::move(pAnim));
+            if (detached && controller)
+            {
+                _DetachedControllers.insert(controller);
+            }
+            return controller;
+        }
+    }
+    return nullptr;
+}
+
 
 Scene::~Scene()
 {

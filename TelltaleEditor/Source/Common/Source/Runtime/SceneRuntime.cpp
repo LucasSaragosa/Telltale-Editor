@@ -1,5 +1,5 @@
 #include <Runtime/SceneRuntime.hpp>
-#include <AnimationManager.hpp>
+#include <TelltaleEditor.hpp>
 
 // SCENE RUNTIME CLASS IMPL
 
@@ -36,14 +36,14 @@ SceneRuntime::SceneRuntime(RenderContext& context, const Ptr<ResourceRegistry>& 
     _AttachedRegistry = pResourceSystem;
     _ScriptManager.Initialise(Meta::GetInternalState().GetActiveGame().LVersion);
     
-    // add lua collections to script VM
-    InjectFullLuaAPI(_ScriptManager, true); // treat as worker
+    // add lua collections to script VM (only engine stuff)
+    ScriptManager::RegisterCollection(_ScriptManager, TelltaleEditor::GetLuaRegistry(ScriptCollection_OnlyEngine, false));
     _ScriptManager.PushOpaque(this);
     ScriptManager::SetGlobal(_ScriptManager, "_SceneRuntime", true);
     _AttachedRegistry->BindLuaManager(_ScriptManager);
     
     LuaFunctionCollection col{};
-    PUSH_FUNC(col, "ResourceGetLowQualityPreloadEnabled", &luaResourceGetLowQualityPreloadEnabled, "boolGetLowQualityPreloadEnabled()",
+    PUSH_FUNC(col, "ResourceGetLowQualityPreloadEnabled", &luaResourceGetLowQualityPreloadEnabled, "bool GetLowQualityPreloadEnabled()",
               "Returns false. Here for compatibility reasons.");
     PUSH_FUNC(col, "ResourceEnableLowQualityPreload", &luaResourceEnableLowQualityPreload, "nil ResourceEnableLowQualityPreload(bOnOff)",
               "Toggles whether to use low quality preload packages. Must have an attached scene runtime, ie must be called from a game script running.");
@@ -156,6 +156,10 @@ RenderNDCScissorRect SceneRuntime::AsyncUpdate(RenderFrame &frame, RenderNDCScis
             }
         }
     }
+
+    // TICK
+    for (auto& scene : _AsyncScenes)
+        scene->UpdateTick(deltaTime, frame.FrameNumber);
     
     // HIGH LEVEL RENDER (ASYNC)
     for(auto& scene : _AsyncScenes)
@@ -258,18 +262,4 @@ void Scene::OnAsyncRenderDetach(SceneRuntime& context)
 void Scene::PerformAsyncRender(SceneRuntime& rtContext, RenderFrame& frame, Float deltaTime)
 {
 
-}
-
-Ptr<PlaybackController> Scene::PlayAnimation(const Symbol &agentName, Ptr<Animation> pAnim)
-{
-    for(auto& agent: _Agents)
-    {
-        if(agent.second->NameSymbol == agentName)
-        {
-            AnimationManager* pManager = agent.second->AgentNode->GetObjData<AnimationManager>("", true);
-            pManager->_SetNode(agent.second->AgentNode);
-            return pManager->ApplyAnimation(this, std::move(pAnim));
-        }
-    }
-    return nullptr;
 }

@@ -703,9 +703,9 @@ class WeakSlotSignal
     U64 _Stat = 0; // 2bits is the stat, rest are sanity bits to ensure it doesnt change (corruption checks).
     
     inline WeakSlotSignal() {}
-    inline WeakSlotSignal(WeakSlotSignal&&) : _Stat(0) {}
+    inline WeakSlotSignal(WeakSlotSignal&&) noexcept : _Stat(0) {}
     inline WeakSlotSignal(const WeakSlotSignal&) : _Stat(0) {}
-    WeakSlotSignal& operator=(WeakSlotSignal&&) { _Stat = 0; return *this; }
+    WeakSlotSignal& operator=(WeakSlotSignal&&) noexcept { _Stat = 0; return *this; }
     WeakSlotSignal& operator=(const WeakSlotSignal&) { _Stat = 0; return *this; }
     
 public:

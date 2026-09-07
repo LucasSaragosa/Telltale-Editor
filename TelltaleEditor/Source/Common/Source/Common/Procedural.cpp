@@ -1,6 +1,8 @@
 #include <Common/Procedural.hpp>
 #include <Common/Chore.hpp>
-#include <AnimationManager.hpp>
+#include <Symbols.hpp>
+#include <Resource/PropertySet.hpp>
+#include <Core/Context.hpp>
 
 #define PROCEDURAL_SERIAL 0x49813fd
 

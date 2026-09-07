@@ -61,6 +61,30 @@ function (ignore_warnings target is_cpp) # ignore specific warnings, but disallo
 	target_compile_options(${target} PRIVATE ${FINAL_WARNINGS})
 endfunction()
 
+function(add_copy_cmd fname thirddir target_name output_dir)
+    add_custom_command(
+        TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${thirddir}/${fname}"
+        "${output_dir}/$<$<CONFIG:Release>:Release>$<$<CONFIG:Debug>:Debug>/${fname}"
+    )
+endfunction()
+
+function(add_copy_cmd_debug fname thirddir target_name output_dir)
+    if(CMAKE_BUILD_TYPE)
+        string(TOUPPER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_UPPER)
+        if(BUILD_TYPE_UPPER STREQUAL "DEBUG")
+            add_custom_command(
+                TARGET ${target_name} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${thirddir}/${fname}"
+                    "${output_dir}/Debug/${fname}"
+            )
+        endif()
+    endif()
+endfunction()
+
 add_subdirectory(3rdparty) # Add the dependencies/libraries
 add_subdirectory(Source/ToolLibrary) # Add the Source Directory for both the library and UI
 add_subdirectory(Source/Editor) # Add the Source Directory for both the library and UI
+add_subdirectory(Source/Common) # Add the Source Directory for common

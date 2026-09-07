@@ -82,14 +82,12 @@ TTE_SECTION_BEGIN(FEATURE_DEFORMABLE)
     float w2 = vin.BoneWeight.z;
 
     float4 localPos = float4(vin.Position, 1.0f);
+    //float4x4 iden = float4x4(1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1);
     float4x4 skin0 = boneMatrix[i0];
     float4x4 skin1 = boneMatrix[i1];
     float4x4 skin2 = boneMatrix[i2];
 
-    float4 skinnedPosition =
-        mul(skin0, localPos) * w0 +
-        mul(skin1, localPos) * w1 +
-        mul(skin2, localPos) * w2;
+    float4 skinnedPosition = mul(skin0, localPos) * w0 + mul(skin1, localPos) * w1 + mul(skin2, localPos) * w2;
 
 TTE_SECTION_ELSE()
 

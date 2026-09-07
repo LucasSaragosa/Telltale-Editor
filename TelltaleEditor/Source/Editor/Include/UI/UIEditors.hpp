@@ -1,6 +1,9 @@
+#pragma once
+
 #include <UI/EditorUI.hpp>
 #include <Core/Callbacks.hpp>
-#include <UI/ModuleUI.inl>
+#include <UI/ModuleUI.hpp>
+
 #include <imgui.h>
 #include <set>
 #include <map>
@@ -103,6 +106,24 @@ public:
 
 };
 
+class PlayAnimationPopup : public AbstractListSelectionPopup
+{
+
+    Ptr<FunctionBase> CompletionCallback;
+
+protected:
+
+    virtual void _OnSelect(const String& selectedItem) override;
+
+    virtual void _RefreshItems(std::vector<String>& values) override;
+
+public:
+
+    inline PlayAnimationPopup(String title, Ptr<FunctionBase> cb) : AbstractListSelectionPopup(title, 1.0f), CompletionCallback(cb) {}
+
+};
+
+
 class MetaClassPickerPopup : public AbstractListSelectionPopup
 {
 
@@ -164,7 +185,7 @@ struct UIResourceEditorRuntimeData
 
 template<>
 struct UIResourceEditorRuntimeData<I32> {}; // PROP, has its own.
- 
+
 // CHORE
 template<>
 struct UIResourceEditorRuntimeData<Chore> : MenuOptionInterface
@@ -197,7 +218,7 @@ struct UIResourceEditorRuntimeData<Chore> : MenuOptionInterface
     LoadingTextAnimator PreloadAnimator;
     U32 PreloadOffset = 0;
 
-    const void* OpenContextMenuGraph = nullptr;
+    const void* OpenContextMenuGraph = nullptr; // only used for comparing. dont cast and deref the ptr.
     
     Float SelectionBox1X = 0.0f, SelectionBox1Y = 0.0f, SelectionBox2X = 0.0f, SelectionBox2Y = 0.0f;
 
@@ -239,6 +260,62 @@ struct UIResourceEditorRuntimeData<Chore> : MenuOptionInterface
     
     void AddAgentCallback(Meta::ClassInstance stringName);
     void DoAddAgent(String agentName);
+
+    struct _RenderState
+    {
+        const Float RES_HEIGHT;
+        const ImVec2& wpos, & wsize;
+        Bool mouseClickedThisFrame;
+        Bool mouseReleasedThisFrame;
+        Bool mouseRightReleased;
+        Bool mouseDown;
+        Float mouseDeltaX;
+        Float mouseDeltaY;
+        Bool anySamplesClicked = false;
+        Bool anythingClicked = false;
+        ImVec2 selectionRectMin, selectionRectMax;
+        Bool usedSelectionReclick;
+        Bool allowReclickNextFrame;
+    };
+
+    struct _RenderResourceState
+    {
+        _RenderState& rs;
+        Bool leftClicked;
+        I32 runningID;
+        I32 rmResource;
+        I32 resourceIndex; // counting resource index, resIndex is the actual resource index in the array from the agent
+        I32 agentResourceIndex;
+    };
+
+    struct _RenderResourceBlockState
+    {
+        _RenderResourceState& state;
+        const ImVec2& resourceBoxMin, &resourceBoxMax;
+        ChoreResource::Block& block;
+        const Float& resourceLength;
+        const SelectedBlock* pSelectedBlock;
+        I32 currentBlockNumber;
+    };
+
+    struct _RenderGraphState
+    {
+        const Ptr<AnimationValueInterface>& pAnimatedValue;
+        const ImVec2& resourceBoxMin, & resourceBoxMax;
+    };
+
+    void RenderChoreGraphs(Chore::Resource& resource, UIResourceEditor<Chore>& editor, _RenderState& rs, I32& runningID);
+    void RenderChoreGraph(Chore::Resource& resource, UIResourceEditor<Chore>& editor, _RenderState& rs, const Ptr<AnimationValueInterface>& pAnimatedValue);
+
+    void RenderChoreGraphKeyframedFloat(_RenderState& rs, _RenderGraphState& gstate, Bool bAddNew);
+    void RenderChoreGraphKeyframedBool(_RenderState& rs, _RenderGraphState& gstate, Bool bAddNew);
+    void RenderChoreGraphKeyframedOther(_RenderState& rs, _RenderGraphState& gstate, Bool bAddNew);
+
+    void RenderMenuOptions(Bool& closing, const Ptr<Chore>& pChore);
+    void RenderChoreTimeline(const Ptr<Chore>& pChore, const Float& RES_HEIGHT, const ImVec2& wpos, const ImVec2& wsize, Bool leftClicked);
+    void RenderChoreAgent(const Ptr<Chore>& pChore, Chore::Agent& agent, _RenderState& rs, Bool leftClicked);
+    void RenderChoreResource(const Ptr<Chore>& pChore, Chore::Resource& resource, Chore::Agent& agent, _RenderResourceState& state);
+    void RenderChoreResourceBlock(const Ptr<Chore>& pChore, Chore::Resource& resource, Chore::Agent& agent, _RenderResourceBlockState& state);
     
 };
 

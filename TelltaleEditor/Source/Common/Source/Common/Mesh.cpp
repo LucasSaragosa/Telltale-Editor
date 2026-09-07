@@ -534,7 +534,7 @@ void Mesh::RegisterScriptAPI(LuaFunctionCollection &Col)
     // U16 => three Snorm floats, third determined by sqrt. x and y have 7 bits each, normed to -1 to 1. MSB unused. bit 15 of 16 is sign of z.
     PUSH_GLOBAL_I(Col, "kCommonMeshCompressedFormatSNormNormal", 1, "Mesh compressed format involving signed normed normal vector3 values");
     // U16 => three Unorm floats, third determined by 1 - x - y (no square, approx). x and y 8 bits each. normalised to 0.0 to 1.0
-    PUSH_GLOBAL_I(Col, "kCommonMeshCompressedFormatUNormNormalAprox", 2, "Mesh compressed format involving unsigned approximated normed normal vector3 values");
+    PUSH_GLOBAL_I(Col, "kCommonMeshCompressedFormatUNormNormalApprox", 2, "Mesh compressed format involving unsigned approximated normed normal vector3 values");
     
 }
 

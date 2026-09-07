@@ -13,6 +13,10 @@ require("ToolLibrary/UI/ModuleWalkAnimator.lua")
 require("ToolLibrary/UI/ModuleNavCam.lua")
 require("ToolLibrary/UI/ModulePathingTo.lua")
 
+-- See docs for _RegisterModuleUI. DO NOT USE that function, use this one (depends on  )
+function RegisterModuleUI(moduleID, moduleImage, dataTable)
+end
+
 function ModuleCollector_RegisterUI(Ver)
 
 	ModuleRenderable_RegisterUI(Ver)

@@ -9,16 +9,39 @@
 #include <EditorTasks.hpp>
 #include <Meta/Meta.hpp>
 #include <Resource/ResourceRegistry.hpp>
-#include <Common/Common.hpp>
-#include <UI/ModuleUI.inl>
+#include <Core/BitSet.hpp>
+#include <Core/Callbacks.hpp>
 
 class TelltaleEditor;
 
-/// Creatae the global editor context (use once). Creates tool context internally.
-TelltaleEditor* CreateEditorContext(GameSnapshot snapshot);
+/// Creatae the global editor context (use once). Creates tool context internally. Ignore the callback arguments for public use.
+TelltaleEditor* CreateEditorContext(GameSnapshot snapshot, Callbacks&& preSwitch = {}, Callbacks&& postSwitch = {}, void (*luaEditorCollect)(LuaFunctionCollection&) = 0);
 
 /// Free the global editor context (use once). Do this right at the end when you are finished with the application.
 void FreeEditorContext();
+
+// Each subset of Lua function collections. If adding, update TelltaleEditor::GetLuaRegistry
+enum class LuaScriptCollection
+{
+
+    FIRST_ENGINE = 0, // could in future separate this. all actual engine API
+    TOOL_LIBRARY_MAIN_ENGINE = 0, // PROP/RESOURCE/FILE TT API
+    COMMON_MAIN_ENGINE = 1, // rest of TT engine API
+    LAST_ENGINE = 1,
+
+    FIRST_TTE = 2,
+    PROP_KEYS = 2, // Telltale prop keys eg kPropKeyXXX
+    TTE_API = 3, // TTE API eg TTE_XXX
+    COMMON_CLASS_API = 4, // common class api eg CommonChoreSetLength etc
+    EDITOR_ONLY_API = 5, // module UI etc, only included (else nothing) when built with Editor project
+    LAST_TTE = 6,
+
+    NUM,
+};
+
+using LuaScriptCollectionBitSet = BitSetFullRange<LuaScriptCollection>;
+constexpr LuaScriptCollectionBitSet ScriptCollection_OnlyTTE = BitSetRanged<LuaScriptCollection, LuaScriptCollection::FIRST_TTE, LuaScriptCollection::LAST_TTE>::All().ClampRange<LuaScriptCollectionBitSet>();
+constexpr LuaScriptCollectionBitSet ScriptCollection_OnlyEngine = BitSetRanged<LuaScriptCollection, LuaScriptCollection::FIRST_ENGINE, LuaScriptCollection::LAST_ENGINE>::All().ClampRange<LuaScriptCollectionBitSet>();
 
 // C++ API
 
@@ -33,11 +56,13 @@ class TelltaleEditor
     
     void _PostSwitch(GameSnapshot snap);
     
-    TelltaleEditor(GameSnapshot snapshot);
+    TelltaleEditor(GameSnapshot snapshot, Callbacks&& preSwitch, Callbacks&& postSwitch, void (*luaEditorCollect)(LuaFunctionCollection&)); // callbacks are called with 1 argument, the snapshot pointer (const)
     
 public:
     
     static TelltaleEditor* Get();
+
+    static LuaFunctionCollection GetLuaRegistry(LuaScriptCollectionBitSet which, Bool bWorker);
     
     ~TelltaleEditor();
     
@@ -171,19 +196,16 @@ private:
     // enqueues blocking job which requires the lua env
     void _EnqueueTask(EditorTask* pTask);
     
-    ToolContext* _ModdingContext = nullptr;
-    
-    U32 _TaskFence = 0; // counter
-    
-    std::vector<std::pair<EditorTask*, JobHandle>> _Active;
-
-    std::unordered_map<String, ModuleUI> _ModuleVisualProperties;
-    
     friend class InspectorView;
     friend U32 luaRegisterModuleUI(LuaManager& man);
 
-    friend TelltaleEditor* CreateEditorContext(GameSnapshot snapshot);
-    
+    friend TelltaleEditor* CreateEditorContext(GameSnapshot snapshot, Callbacks&& preSwitch, Callbacks&& postSwitch, void (*luaEditorCollect)(LuaFunctionCollection&));
+
+    ToolContext* _ModdingContext = nullptr;
+    U32 _TaskFence = 0; // counter
+    Callbacks _PreSwitchCallbacks, _PostSwitchCallbacks; // setup at constructor, for UI to do UI stuff on top of this
+    std::vector<std::pair<EditorTask*, JobHandle>> _Active;
+
 };
 
 Bool AsyncTTETaskDelegate(const JobThread& thread, void* argA, void* argB);
@@ -269,16 +291,13 @@ namespace CommandLine
     };
     
     // Get a list of all available editor tasks in this development build.
-    std::vector<TaskInfo> CreateTasks();
+    std::vector<TaskInfo> CreateTasks(TaskExecutor* mainExec);
     
     // Parse command line args into argument stack to be used.
     std::vector<String> ParseArgsStack(int argc, char** argv);
     
     // To automatically run the editor, just call guarded main here which will run all tasks in the command line.
-    I32 GuardedMain(int argc, char** argv); // executabe command line and exit.
-    
-    // Defined also in Main.cpp. The main editor application task.
-    I32 Executor_Editor(const std::vector<TaskArgument>& args);
+    I32 GuardedMain(int argc, char** argv, TaskExecutor* mainExecutorDelegate); // executabe command line and exit.
     
     String GetStringArgumentOrDefault(const std::vector<TaskArgument>& args, String arg, String def);
     

@@ -674,7 +674,7 @@ namespace Meta
         
         // INTERNAL: Create transient
         inline ClassInstanceScriptRef(U32 classID, TransientJuncture&& junc, ParentWeakReference&& p) :
-        Juncture(std::move(junc)), ClassID(classID), ParentWeakRef(std::move(p)) {}
+        Juncture(std::move(junc)), ClassID(classID), ParentWeakRef(std::move(p)), ConcreteInstanceRef(0) {}
         
         // INTERNAL: Create strong ref / persistent
         inline ClassInstanceScriptRef(ClassInstance& inst) : ClassID(inst.GetClassID())

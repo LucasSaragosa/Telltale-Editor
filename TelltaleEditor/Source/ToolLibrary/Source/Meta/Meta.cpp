@@ -1771,8 +1771,6 @@ namespace Meta {
         TTE_ASSERT(IsCallingFromMain(), "Must only be called from main thread");
         TTE_ASSERT(GetToolContext(), "Tool context not created");
         
-        InjectFullLuaAPI(GetToolContext()->GetLibraryLVM(), false);
-        
         // Setup games script
         
         ScriptManager::RunText(GetToolContext()->GetLibraryLVM(),

@@ -3,10 +3,7 @@
 #include <Common/InputMapper.hpp>
 
 #include <chrono>
-#include <cfloat>
 #include <sstream>
-#include <iostream>
-#include <algorithm>
 
 #if defined(PLATFORM_WINDOWS) && defined(DEBUG)
 #define USE_PIX
@@ -280,6 +277,11 @@ void RenderContext::Shutdown()
     }
 }
 
+Float RenderContext::GetLastDeltaTime()
+{
+    return _LastDeltaTime;
+}
+
 Bool RenderContext::IsLeftHanded()
 {
     CString device = SDL_GetGPUDeviceDriver(_Device);
@@ -539,6 +541,7 @@ Bool RenderContext::FrameUpdate(Bool isLastFrame, SDL_GPUCommandBuffer* acq, SDL
         _StartTimeMicros = std::chrono::duration_cast<std::chrono::microseconds>(
                                                                                  std::chrono::system_clock::now().time_since_epoch()).count();
     }
+    _LastDeltaTime = dt;
 
     // 4. Perform rendering. Create main command buffer to acquire swapchain texture. Then wait on all to finish.
     RenderFrame* pFrame = &GetFrame(false);
@@ -2075,18 +2078,22 @@ Ptr<RenderBuffer> RenderContext::CreateVertexBuffer(U64 sizeBytes, String N)
     return buffer;
 }
 
-Ptr<RenderBuffer> RenderContext::CreateGenericBuffer(U64 sizeBytes, String N)
+Ptr<RenderBuffer> RenderContext::CreateGenericBuffer(U64 stride, U32 numElements, String N)
 {
     Ptr<RenderBuffer> buffer = TTE_NEW_PTR(RenderBuffer, MEMORY_TAG_RENDERER);
     TTE_ATTACH_DBG_STR(buffer.get(), "RenderGenericBuffer:" + N);
     buffer->_Context = this;
-    buffer->SizeBytes = sizeBytes;
+    buffer->SizeBytes = stride*numElements;
     buffer->Usage = RenderBufferUsage::UNIFORM;
 
     SDL_GPUBufferCreateInfo inf{};
-    inf.size = (U32)sizeBytes;
+    inf.size = (U32)buffer->SizeBytes;
     inf.props = 0;
     inf.usage = SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ;
+
+    // apply patch for stride + size
+    _TTEPatches.CreateBufferCall_NumElements = numElements;
+    _TTEPatches.CreateBufferCall_Stride = stride;
 
     inf.props = SDL_CreateProperties();
     SDL_SetStringProperty(inf.props, SDL_PROP_GPU_BUFFER_CREATE_NAME_STRING, N.c_str());

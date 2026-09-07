@@ -411,6 +411,8 @@ public:
     Bool IsRowMajor();
     
     Bool IsLeftHanded();
+
+    Float GetLastDeltaTime();
     
     // Pops a layer. This could stop a current scene rendering for example. Will update next frame. If you previously called push, this reverts this.
     void PopLayer();
@@ -460,7 +462,7 @@ public:
     Ptr<RenderBuffer> CreateIndexBuffer(U64 sizeBytes, String Name = "TTE Index Buffer");
     
     // Create a generic buffer
-    Ptr<RenderBuffer> CreateGenericBuffer(U64 szBytes, String Name = "TTE Generic Buffer");
+    Ptr<RenderBuffer> CreateGenericBuffer(U64 stride, U32 numElements, String Name = "TTE Generic Buffer");
     
     // Create a texture. Call its create member function to create.
     inline Ptr<RenderTexture> AllocateRuntimeTexture()
@@ -675,6 +677,7 @@ private:
     U32 _MinFrameTimeMS = 0; // min frame time (ie max frame rate)
     U32 _HotResourceThresh = 0; // hot resource threshold
     U32 _HotLockThresh = 0;
+    Float _LastDeltaTime = 0.0f;
     
     SDL_Window* _Window; // SDL3 window handle
     SDL_GPUDevice* _Device; // SDL3 graphics device (vulkan,d3d,metal)

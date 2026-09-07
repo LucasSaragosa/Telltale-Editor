@@ -19,4 +19,8 @@ protected:
     
     void _OnExportOpen(String file);
 
+    void _OnPlayAnimationSelect(String file);
+
+    void _DoPlayAnimation(std::vector<Symbol>*);
+
 };

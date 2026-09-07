@@ -4,7 +4,7 @@
 // <><><><><><><><><><><><><><><><><><><><><><><><><><> HELPER DEFINES & MACROS. <><><><><><><><><><><><><><><><><><><><><><><><><><><><>
 // <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><<><><><><><><>><><><><><><><><><>
 
-#define DEFINE_ENUM_STRUCT(_Et, _En) template struct Enum<_Et>; template<> struct EnumTraits<_Et> { static constexpr CString ClassName = _En; }
+#define DEFINE_ENUM_STRUCT(_Et, _En) template<> struct EnumTraits<_Et> { static constexpr CString ClassName = _En; }; template struct Enum<_Et>
 
 template<typename Enum>
 struct EnumTraits
@@ -15,6 +15,8 @@ struct EnumTraits
 template<typename EnumT>
 struct Enum
 {
+
+    static constexpr CString ClassName = EnumTraits<EnumT>::ClassName;
 
     inline Enum()
     {

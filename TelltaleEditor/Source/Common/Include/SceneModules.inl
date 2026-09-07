@@ -4,6 +4,9 @@
 
 #include <Renderer/Camera.hpp>
 #include <Renderer/Text.hpp>
+#include <Common/Mesh.hpp>
+#include <Resource/ResourceRegistry.hpp>
+#include <Common/Skeleton.hpp>
 
 #ifdef TEXT
 #undef TEXT
@@ -185,6 +188,8 @@ struct SceneInstData
 
     struct PODData
     {
+
+        PODData() = default;
 
         Colour _AmbientColor;
         Colour _ShadowColor;
@@ -622,6 +627,8 @@ struct LightInstance
 
     struct PODData
     {
+
+        PODData() = default;
 
         // Colors
         Colour _LightColour;

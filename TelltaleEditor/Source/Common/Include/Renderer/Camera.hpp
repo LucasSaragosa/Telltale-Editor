@@ -171,6 +171,8 @@ public:
         _BokehFalloff = 0.7f;
         _MaxBokehBufferVertexAmount = 0.f;
         _BokehAberrationOffsetsX = _BokehAberrationOffsetsY = Vector3();
+        _AudioReverbOverride = 0.0f;
+        _FocalLength = 0.0f;
     }
     
     // Tests if an agent name is excluded

@@ -14,7 +14,18 @@
 #include <filesystem>
 #include <sstream>
 
+extern void luaModuleUI(LuaFunctionCollection& Col);
+
+// =========================================== APPLICATION SCRIPT REG
+
 DECL_VEC_ADDITION();
+
+static ApplicationScriptRegistrar _ASR{};
+
+ApplicationScriptRegistrar& ApplicationScriptRegistrar::Get()
+{
+    return _ASR;
+}
 
 // =========================================== APPLICATION UI CLASS
 
@@ -25,7 +36,7 @@ ApplicationUI::ApplicationUI() : _Device(nullptr), _Window(nullptr), _Editor(nul
 
 ApplicationUI::~ApplicationUI()
 {
-
+    _ASR.Reset();
 }
 
 void ApplicationUI::Quit()
@@ -647,7 +658,7 @@ I32 ApplicationUI::Run(const std::vector<CommandLine::TaskArgument>& args)
     RenderContext::Initialise();
 
     // INIT EMPTY CONTEXT
-    _Editor = CreateEditorContext({});
+    _Editor = CreateEditorContext({}, {}, {}, &luaModuleUI);
 
     CString titleBar = "Telltale Editor v" TTE_VERSION;
 #ifdef DEBUG
@@ -846,7 +857,7 @@ I32 ApplicationUI::Run(const std::vector<CommandLine::TaskArgument>& args)
         ImGui::NewFrame();
 
         // UPDATE AND RENDER UI
-        _Update();
+        _Update(); 
         _RenderPopups();
 
         // END
@@ -1087,8 +1098,6 @@ UIConsole::~UIConsole()
 {
     GetApplication()._Flags.Remove(ApplicationFlag::CONSOLE_WINDOW_OPEN);
 }
-
-
 
 Bool UIMemoryTracker::Render()
 {

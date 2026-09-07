@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Core/Config.hpp>
-#include <Core/Context.hpp>
 #include <Core/BitSet.hpp>
 #include <Meta/Meta.hpp>
 
@@ -9,13 +8,9 @@
 #include <Resource/PropertySet.hpp>
 
 #include <Common/InputMapper.hpp>
-#include <Common/Mesh.hpp>
-#include <Common/Skeleton.hpp>
-
-#include <Symbols.hpp>
 
 #include <vector>
-#include <type_traits>
+#include <set>
 
 // ========================================= PREDEFS =========================================
 
@@ -420,8 +415,11 @@ public:
         return _Modules.GetModuleArray<M>();
     }
 
-    // Does not PLAY it! You must call Play on the returned controller.
-    Ptr<PlaybackController> PlayAnimation(const Symbol& agent, Ptr<Animation> pAnim);
+    // If using SceneRuntime, this will be called automatically. If not, manually call this to update animation and other scene components which are not dialog/scene play.
+    void UpdateTick(Float secsElapsed, U64 frameNumber);
+
+    // Does not PLAY it! You must call Play on the returned controller. Set detached to true so PBC lifetime will not control if animation is not playing. It is still returned, you must call Play.
+    Ptr<PlaybackController> PlayAnimation(const Symbol& agent, Ptr<Animation> pAnim, Bool detached);
     
 private:
     
@@ -487,7 +485,8 @@ private:
     AgentMap _Agents; // scene agent list
     std::vector<WeakPtr<Camera>> _ViewStack; // view stack
     std::vector<AnimationManager*> _AnimationMgrs; // anim managers
-    std::set<PlaybackController*> _Controllers;
+    std::set<PlaybackController*> _Controllers; // added and removed on ctor/dtor, no global list, per scene here.
+    std::set<Ptr<PlaybackController>> _DetachedControllers; // fire and forget, ref counted here
     
     // ==== DATA ORIENTATED AGENT MODULE ATTACHMENTS
 

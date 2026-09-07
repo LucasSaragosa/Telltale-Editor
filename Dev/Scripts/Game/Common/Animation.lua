@@ -38,6 +38,8 @@ function ProceduralLookAt_OnAttach(props, ver) -- ver 0 for now for lodest
     PropertyCreate(props, "Target Agent Node", "class String", "head")
     -- similar, this is the actual node on the agent about to look, default their head lol
     PropertyCreate(props, "Host Agent Node", "class String", "head")
+    -- target node offset
+    PropertyCreate(props, "Target Agent Node Offset", "class Vector3")
 end
 
 function RegisterCompressedVecAndQuats0()

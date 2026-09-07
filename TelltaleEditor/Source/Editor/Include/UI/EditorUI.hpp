@@ -6,7 +6,6 @@
 #include <Common/Scene.hpp>
 #include <Runtime/SceneRenderer.hpp>
 
-#include <unordered_set>
 #include <unordered_map>
 #include <functional>
 
@@ -65,6 +64,8 @@ class EditorUI : public UIStackable
     Bool _TestOpenEditor(const String& ext, const String& fileName, const String& rloc);
 
 public:
+
+    static constexpr CString PreloadMask = "EditorUI.rt"; // called every frame with registry update
 
     void UserRequestOpenFile();
 

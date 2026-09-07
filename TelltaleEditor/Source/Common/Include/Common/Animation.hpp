@@ -266,9 +266,31 @@ enum class KeyframedSampleFlag
     INTERPOLATE_TO_NEXT_KEY = 1,
 };
 
+class KeyframedValueInterface
+{
+public:
+
+    virtual I32 GetNumSamples() const = 0;
+    
+    virtual const void* GetSampleData() const = 0;
+
+    virtual Bool GetKeysFlag(U32 flag) const = 0;
+
+    virtual void SetKeysFlag(U32 flag) = 0;
+
+    virtual void ClearKeysFlag(U32 flag) = 0;
+
+    virtual const void* GetSample(U32 index) const = 0;
+
+    virtual void InsertSampleAt(Float time, /*NULLABLE*/ const void* pSample) = 0;
+
+    virtual void RemoveSample(U32 index) = 0;
+
+};
+
 // Keyframed value
 template<typename T>
-class KeyframedValue : public AnimationValueInterface
+class KeyframedValue : public AnimationValueInterface, public KeyframedValueInterface
 {
 public:
     
@@ -314,6 +336,59 @@ public:
         it->Time = time;
         it->Value = std::move(value);
         return *it;
+    }
+
+    inline virtual I32 GetNumSamples() const override
+    {
+        return (I32)_Samples.size();
+    }
+
+    inline virtual const void* GetSampleData() const override
+    {
+        return (void*)_Samples.data();
+    }
+
+    inline virtual Bool GetKeysFlag(U32 flag) const override
+    {
+        return (AnimationValueInterface::_Flags & flag) != 0;
+    }
+
+    inline virtual void SetKeysFlag(U32 flag) override 
+    {
+        AnimationValueInterface::_Flags += flag;
+    }
+
+    inline virtual void ClearKeysFlag(U32 flag) override
+    {
+        AnimationValueInterface::_Flags.Remove(flag);
+    }
+    inline virtual const void* GetSample(U32 index) const override
+    {
+        return (const void*)&_Samples[index];
+    }
+
+    inline virtual void InsertSampleAt(Float time, const void* pSample) override
+    {
+        if(pSample)
+        {
+            T value = *(const T*)pSample;
+            InsertSample(time, std::move(value));
+        }
+        else
+        {
+            T valueAt{};
+            Flags _{};
+            ComputeValueKeyframed(&valueAt, time, kDefaultContribution, _, true);
+            InsertSample(time, valueAt);
+        }
+    }
+
+    inline virtual void RemoveSample(U32 index) override
+    {
+        if(index < _Samples.size())
+        {
+            _Samples.erase(_Samples.begin() + index);
+        }
     }
     
 private:
@@ -722,7 +797,7 @@ public:
     static constexpr CString Class = "Animation";
     static constexpr CString Extension = "anm";
     
-    inline Animation(Ptr<ResourceRegistry> reg) : HandleableRegistered<Animation>(std::move(reg)) {}
+    inline Animation(Ptr<ResourceRegistry> reg) : HandleableRegistered<Animation>(std::move(reg)), _Length(0.0f) {}
     
     Animation(const Animation& rhs) = default;
     

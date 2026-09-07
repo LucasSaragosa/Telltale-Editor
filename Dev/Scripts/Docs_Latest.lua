@@ -4638,7 +4638,7 @@ kCommonMeshCompressedFormatUNormUV = 0
 
 --- Mesh compressed format involving unsigned approximated normed normal vector3 values
 --- @type number
-kCommonMeshCompressedFormatUNormNormalAprox = 0
+kCommonMeshCompressedFormatUNormNormalApprox = 0
 
 --- BGR'X' resolvable texture format. 'X' is unused and set to opaque.
 --- @type number

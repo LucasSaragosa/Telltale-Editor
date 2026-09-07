@@ -58,6 +58,11 @@ class Callbacks
     Ptr<FunctionBase> _Cbs;
     
 public:
+
+    inline void CallErasedNoArguments()
+    {
+        CallErased(0, 0, 0, 0, 0, 0, 0, 0);
+    }
     
     inline void CallErased(void* pArg1, U32 classArg1, void* pArg2, U32 classArg2, void* pArg3, U32 classArg3, void* Arg4, U32 classArg4)
     {
@@ -246,10 +251,10 @@ struct LuaFunctionImpl : FunctionBase
             return;
         }
         LuaManager& man = ManagerRef.Get();
-        if(NumArgs >= 1) TTE_ASSERT(pArg1, "Argument 1 not provided");
-        if(NumArgs >= 2) TTE_ASSERT(pArg2, "Argument 2 not provided");
-        if(NumArgs >= 3) TTE_ASSERT(pArg3, "Argument 3 not provided");
-        if(NumArgs == 4) TTE_ASSERT(pArg4, "Argument 4 not provided");
+        if(NumArgs >= 1) TTE_ASSERT(pArg1 && classArg1, "Argument 1 not provided");
+        if(NumArgs >= 2) TTE_ASSERT(pArg2 && classArg2, "Argument 2 not provided");
+        if(NumArgs >= 3) TTE_ASSERT(pArg3 && classArg3, "Argument 3 not provided");
+        if(NumArgs == 4) TTE_ASSERT(pArg4 && classArg4, "Argument 4 not provided");
         if(RegistryIndex != -1)
         {
             man.GetReg(RegistryIndex);

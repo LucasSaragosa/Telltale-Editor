@@ -184,6 +184,31 @@ String ResourcePickerPopup::_GetToolTipText(const String& hoveredItem)
     return "";
 }
 
+// ============ PLAY ANIMATION POPUP
+
+void PlayAnimationPopup::_OnSelect(const String& selectedItem)
+{
+    String selected = selectedItem;
+    CompletionCallback->CallErased(&selected, 0, 0, 0, 0, 0, 0, 0);
+}
+
+void PlayAnimationPopup::_RefreshItems(std::vector<String>& items)
+{
+    const StringMask ANIM_MASK = "*.anm";
+    std::set<String> resources{};
+    std::vector<String> locations{};
+    Editor->GetApplication().GetRegistry()->GetResourceLocationNames(locations);
+    for (const String& location : locations)
+    {
+        Editor->GetApplication().GetRegistry()->GetLocationResourceNames(location, resources, &ANIM_MASK);
+    }
+    items.reserve(resources.size());
+    for (const auto& value : resources)
+    {
+        items.push_back(value);
+    }
+}
+
 // ============ META CLASS PICKER POPUP
 
 void MetaClassPickerPopup::_OnSelect(const String& selectedItem)

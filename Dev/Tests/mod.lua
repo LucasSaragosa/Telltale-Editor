@@ -1,8 +1,8 @@
 local function MountResourceLocations()
     if TTE_GetPlatform() == "Windows" then
         TTE_MountSystem("<Data>/", "D:/Games/Bone - Out from Boneville/2005/data/", true) -- set input files
-        TTE_MountSystem("<Vers>/", "c:/Users/lucas/Desktop/extract/Vers/", true)
-        TTE_MountSystem("<Extract>/", "c:/Users/lucas/Desktop/extract/", true)
+        --TTE_MountSystem("<Vers>/", "c:/Users/lucas/Desktop/extract/Vers/", true)
+        --TTE_MountSystem("<Extract>/", "c:/Users/lucas/Desktop/extract/", true)
     else
         TTE_MountSystem("<Data>/", "/Users/lucassaragosa/Desktop/Game/Boneville/StreamedData_Mac/", true) -- set input files
         TTE_MountSystem("<Vers>/", "/users/lucassaragosa/desktop/versprobe/", true)
@@ -52,14 +52,12 @@ local function Extract()
 end
 
 local function Test()
-    MountResourceLocations()
-    local files = ResourceGetNames("*.d3dmesh")
+    local files = ResourceGetNames("*.chore")
     for _,file in ipairs(files) do
+        local _ = TTE_OpenMetaStream(ResourceGetURL(file))
         TTE_Log("- " .. file)
-        -- FileCopy(ResourceGetURL(file), "logical://<Extract>/" .. file)
-        local ms = TTE_OpenMetaStream(ResourceGetURL(file))
     end
 end
 
 MountResourceLocations()
-Extract()
+Test()

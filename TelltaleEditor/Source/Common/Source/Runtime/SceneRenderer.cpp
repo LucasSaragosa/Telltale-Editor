@@ -1,4 +1,5 @@
 #include <Runtime/SceneRenderer.hpp>
+#include <AnimationManager.hpp>
 
 SceneRenderer::SceneRenderer(Ptr<RenderContext> pRenderContext) : _Renderer(pRenderContext), _CallbackTag(0)
 {
@@ -106,10 +107,11 @@ SceneRenderer::SceneState::VertexStateData::VertexStateData()
     Dirty.Clear(true);
 }
 
-void SceneRenderer::_RenderMeshBatch(Ptr<Scene> pScene, RenderFrame& frame, const Ptr<Mesh::MeshInstance> pMeshInstance, Transform model, Mesh::LODInstance& lod, Mesh::MeshBatch& batch, RenderViewPass* pass, RenderStateBlob blob)
+void SceneRenderer::_RenderMeshBatch(Ptr<Scene> pScene, const Ptr<Node> agentNode, RenderFrame& frame, const Ptr<Mesh::MeshInstance> pMeshInstance, Transform model, Mesh::LODInstance& lod, Mesh::MeshBatch& batch, RenderViewPass* pass, RenderStateBlob blob)
 {
     WeakPtr<Mesh::MeshInstance> wk = WeakPtr<Mesh::MeshInstance>(pMeshInstance);
     RenderContext& context = *_Renderer.get();
+    auto& cacheRuntimeInstance = _CurrentScene.MeshData[wk];
 
     ShaderParameter_Object* obj = frame.Heap.NewNoDestruct<ShaderParameter_Object>();
 
@@ -118,6 +120,7 @@ void SceneRenderer::_RenderMeshBatch(Ptr<Scene> pScene, RenderFrame& frame, cons
     required.Set(ShaderParameterType::PARAMETER_OBJECT, true);
     required.Set(ShaderParameterType::PARAMETER_INDEX0IN, true);
     required.Set(ShaderParameterType::PARAMETER_SAMPLER_DIFFUSE, true);
+    if (cacheRuntimeInstance.BoneBuffer) required.Set(ShaderParameterType::PARAMETER_GENERIC0, true);
     for (U32 buf = 0; buf < pMeshInstance->VertexStates[lod.VertexStateIndex].Default.NumVertexBuffers; buf++)
     {
         required.Set((ShaderParameterType)((U32)ShaderParameterType::PARAMETER_VERTEX0IN + buf), true);
@@ -125,6 +128,12 @@ void SceneRenderer::_RenderMeshBatch(Ptr<Scene> pScene, RenderFrame& frame, cons
     ShaderParametersGroup* objGroup = context.AllocateParameters(frame, required);
     context.SetParameterUniform(frame, objGroup, ShaderParameterType::PARAMETER_OBJECT, obj, sizeof(ShaderParameter_Object));
     RenderUtility::SetObjectParameters(context, obj, MatrixTransformation(model._Rot, model._Trans), Colour::White);
+
+    // BONE MATRIX
+    if(cacheRuntimeInstance.BoneBuffer)
+    {
+        context.SetParameterGenericBuffer(frame, objGroup, ShaderParameterType::PARAMETER_GENERIC0, cacheRuntimeInstance.BoneBuffer, 0);
+    }
 
     // DIFFUSE TEXTURE
     Ptr<RenderTexture> diffuseTex = pMeshInstance->Materials[batch.MaterialIndex].DiffuseTexture.GetObject(pScene->GetRegistry(), true);
@@ -145,14 +154,18 @@ void SceneRenderer::_RenderMeshBatch(Ptr<Scene> pScene, RenderFrame& frame, cons
     {
         context.SetParameterVertexBuffer(frame, objGroup,
                                          (ShaderParameterType)((U32)ShaderParameterType::PARAMETER_VERTEX0IN + buf),
-                                         _CurrentScene.MeshData[wk].VertexState[lod.VertexStateIndex].GPUVertexBuffers[buf], 0);
+                                         cacheRuntimeInstance.VertexState[lod.VertexStateIndex].GPUVertexBuffers[buf], 0);
     }
 
     context.SetParameterIndexBuffer(frame, objGroup, ShaderParameterType::PARAMETER_INDEX0IN, 
-                                    _CurrentScene.MeshData[wk].VertexState[lod.VertexStateIndex].GPUIndexBuffer, 0);
+                                    cacheRuntimeInstance.VertexState[lod.VertexStateIndex].GPUIndexBuffer, 0);
 
     // Effect setup
     RenderEffectFeaturesBitSet variants{};
+    if(cacheRuntimeInstance.BoneBuffer)
+    {
+        variants.Set(RenderEffectFeature::DEFORMABLE, true);
+    }
 
     // DRAW
     RenderInst inst{};
@@ -163,16 +176,16 @@ void SceneRenderer::_RenderMeshBatch(Ptr<Scene> pScene, RenderFrame& frame, cons
     pass->PushRenderInst(context, std::move(inst), objGroup);
 }
 
-void SceneRenderer::_RenderMeshLOD(Ptr<Scene> pScene, RenderFrame& frame, const Ptr<Mesh::MeshInstance> pMeshInstance, Transform model, Mesh::LODInstance& lod, RenderViewPass* pass, RenderStateBlob blob)
+void SceneRenderer::_RenderMeshLOD(Ptr<Scene> pScene, const Ptr<Node> agentNode, RenderFrame& frame, const Ptr<Mesh::MeshInstance> pMeshInstance, Transform model, Mesh::LODInstance& lod, RenderViewPass* pass, RenderStateBlob blob)
 {
     // Skip shadow for now
     for(Mesh::MeshBatch& batch: lod.Batches[0])
     {
-        _RenderMeshBatch(pScene, frame, pMeshInstance, model, lod, batch, pass, blob);
+        _RenderMeshBatch(pScene, agentNode, frame, pMeshInstance, model, lod, batch, pass, blob);
     }
 }
 
-void SceneRenderer::_RenderMeshInstance(Ptr<Scene> pScene, RenderFrame& frame, const Ptr<Mesh::MeshInstance> pMeshInstance, Transform model, RenderViewPass* pass, RenderStateBlob blob)
+void SceneRenderer::_RenderMeshInstance(Ptr<Scene> pScene, const Ptr<Node> agentNode, RenderFrame& frame, const Ptr<Mesh::MeshInstance> pMeshInstance, Transform model, RenderViewPass* pass, RenderStateBlob blob)
 {
     if(_Renderer->TouchResource(pMeshInstance))
     {
@@ -188,13 +201,38 @@ void SceneRenderer::_RenderMeshInstance(Ptr<Scene> pScene, RenderFrame& frame, c
             }
         }
 
-        // TODO fix deformable
-        //if(!pMeshInstance->MeshFlags.Test(Mesh::FLAG_DEFORMABLE))
+        // BONE BUFFERS
+        Bool bHasBoneBuffer = false;
+        if(pMeshInstance->MeshFlags.Test(Mesh::FLAG_DEFORMABLE))
+        {
+            SkeletonInstance* pSklInstance = agentNode->GetObjDataByType<SkeletonInstance>();
+            if(pSklInstance)
+            {
+                Ptr<RenderBuffer>& buffer = _CurrentScene.MeshData[pMeshInstance].BoneBuffer;
+                U32 nBones = (U32)pSklInstance->GetSkeleton()->GetEntries().size();
+                if(!buffer)
+                {
+                    String bufferName = agentNode->AgentName + " BoneBuffer";
+                    buffer = _Renderer->CreateGenericBuffer(64, nBones, bufferName); // sizeof(Matrix4) === 64
+                }
+                bHasBoneBuffer = true;
+                Meta::BinaryBuffer upload{};
+                upload.BufferData = TTE_PROXY_PTR((U8*)pSklInstance->GetCurrentPose(), U8);
+                upload.BufferSize = 64 * nBones;
+                frame.UpdateList->UpdateBufferMeta(upload, buffer, 0);
+            }
+        }
+        if(!bHasBoneBuffer)
+        {
+            _CurrentScene.MeshData[pMeshInstance].BoneBuffer = {}; // reset it
+        }
+
+        // Render all LODs
         {
 
             for (Mesh::LODInstance& LOD : pMeshInstance->LODs)
             {
-                _RenderMeshLOD(pScene, frame, pMeshInstance, model, LOD, pass, blob);
+                _RenderMeshLOD(pScene, agentNode, frame, pMeshInstance, model, LOD, pass, blob);
             }
 
         }
@@ -288,7 +326,7 @@ void SceneRenderer::RenderScene(const SceneFrameRenderParams& frameRender) // Sc
         Transform agentWorld = Scene::GetNodeWorldTransform(renderable.AgentNode);
         for(Ptr<Mesh::MeshInstance>& meshInstance: renderable.Renderable.MeshList)
         {
-            _RenderMeshInstance(frameRender.RenderScene, frame, meshInstance, agentWorld, pDiffusePass, globalRenderState);
+            _RenderMeshInstance(frameRender.RenderScene, renderable.AgentNode, frame, meshInstance, agentWorld, pDiffusePass, globalRenderState);
         }
     }
 

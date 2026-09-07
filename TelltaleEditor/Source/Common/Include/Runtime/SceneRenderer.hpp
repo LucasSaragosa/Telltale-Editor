@@ -46,9 +46,9 @@ public:
 
 private:
 
-    void _RenderMeshInstance(Ptr<Scene> pScene, RenderFrame& frame, const Ptr<Mesh::MeshInstance> pMeshInstance, Transform model, RenderViewPass* pass, RenderStateBlob blob);
-    void _RenderMeshLOD(Ptr<Scene> pScene, RenderFrame& frame, const Ptr<Mesh::MeshInstance> pMeshInstance, Transform model, Mesh::LODInstance& lod, RenderViewPass* pass, RenderStateBlob blob);
-    void _RenderMeshBatch(Ptr<Scene> pScene, RenderFrame& frame, const Ptr<Mesh::MeshInstance> pMeshInstance, Transform model, Mesh::LODInstance& lod, Mesh::MeshBatch& batch, RenderViewPass* pass, RenderStateBlob blob);
+    void _RenderMeshInstance(Ptr<Scene> pScene, const Ptr<Node> agentNode, RenderFrame& frame, const Ptr<Mesh::MeshInstance> pMeshInstance, Transform model, RenderViewPass* pass, RenderStateBlob blob);
+    void _RenderMeshLOD(Ptr<Scene> pScene, const Ptr<Node> agentNode, RenderFrame& frame, const Ptr<Mesh::MeshInstance> pMeshInstance, Transform model, Mesh::LODInstance& lod, RenderViewPass* pass, RenderStateBlob blob);
+    void _RenderMeshBatch(Ptr<Scene> pScene, const Ptr<Node> agentNode, RenderFrame& frame, const Ptr<Mesh::MeshInstance> pMeshInstance, Transform model, Mesh::LODInstance& lod, Mesh::MeshBatch& batch, RenderViewPass* pass, RenderStateBlob blob);
     void _UpdateMeshBuffers(RenderFrame& frame, const Ptr<Mesh::MeshInstance> pMeshInstance);
 
     void _PostRenderCallback(RenderFrame* pFrame);
@@ -70,6 +70,7 @@ private:
 
         struct MeshInstanceData
         {
+            Ptr<RenderBuffer> BoneBuffer;
             std::vector<VertexStateData> VertexState;
         };
 

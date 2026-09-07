@@ -30,7 +30,7 @@ public:
 private:
     
     // Call Switch with the game to setup the context to the given game. This constructor initialised low level APIs, constant for each game.
-    ToolContext(LuaFunctionCollection PerState = {});
+    ToolContext(LuaFunctionCollection LVMAPI, LuaFunctionCollection PerWorkerAPI);
     
 public:
     
@@ -120,7 +120,7 @@ private:
     void _IncrWeakRef(U32 slot);
     static void _AssertWeakSlot(U64 state);
     
-    friend ToolContext* CreateToolContext(LuaFunctionCollection);
+    friend ToolContext* CreateToolContext(LuaFunctionCollection,LuaFunctionCollection);
 
     friend void Meta::InitGame();
     
@@ -131,9 +131,8 @@ private:
     
 };
 
-// Creates the global tool context. Only one call per process. Optionally pass in lua API to register to each state, including
-// the library LVM and also the worker thread local states.
-ToolContext* CreateToolContext(LuaFunctionCollection PerStateAPI = {});
+// Creates the global tool context. Only one call per process. Pass in API for each lua VM: main LVM and each worker thread.
+ToolContext* CreateToolContext(LuaFunctionCollection API, LuaFunctionCollection WorkersAPI);
 
 // Call at the end of the process
 void DestroyToolContext();

@@ -38,6 +38,18 @@ ignore_warnings(${TARGET_NAME} 1)
 
 target_include_directories(${TARGET_NAME} PUBLIC ${TELLTALE_LIB_HEADERS_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 
+# copy dynamic libraries to output build directory
+if(UNIX)
+    if(APPLE)
+        add_copy_cmd("oodle_mac_arm_x86.dylib" "${THIRD_PARTY_DIR}/oodle" ${TARGET_NAME} "${TELLTALE_EDITOR_ROOT_DIR}/Bin")
+    else()
+        add_copy_cmd("oodle_linux_arm.so" "${THIRD_PARTY_DIR}/oodle" ${TARGET_NAME} "${TELLTALE_EDITOR_ROOT_DIR}/Bin")
+        add_copy_cmd("oodle_linux_x86.so" "${THIRD_PARTY_DIR}/oodle" ${TARGET_NAME} "${TELLTALE_EDITOR_ROOT_DIR}/Bin")
+    endif()
+elseif(WIN32)
+    add_copy_cmd("oodle_win_x86.dll" "${THIRD_PARTY_DIR}/oodle" ${TARGET_NAME} "${TELLTALE_EDITOR_ROOT_DIR}/Bin")
+endif()
+
 # Add 3rd party directory
 
 target_include_directories(${TARGET_NAME} PUBLIC ${THIRD_PARTY_DIR})

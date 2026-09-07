@@ -45,7 +45,6 @@ void JobScheduler::_JobThreadFn(JobScheduler &scheduler, U32 threadIndex)
     myself.L.Initialise(LuaVersion::LUA_5_2_3); // latest
     MyLocalThread = &myself;
     
-    InjectFullLuaAPI(myself.L, true);
     ScriptManager::RegisterCollection(myself.L, scheduler._workerScriptCollection); // register anything else
     
     SetThreadName(myself.ThreadName); // Set name in debugger for future use

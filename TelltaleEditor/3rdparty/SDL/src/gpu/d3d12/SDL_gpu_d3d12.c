@@ -3637,7 +3637,7 @@ static SDL_GPUTexture *D3D12_CreateTexture(
 static D3D12Buffer *D3D12_INTERNAL_CreateBuffer(
     D3D12Renderer *renderer,
     SDL_GPUBufferUsageFlags usageFlags,
-    Uint32 size,
+    Uint32 __size,
     D3D12BufferType type,
     const char *debugName)
 {
@@ -3652,6 +3652,18 @@ static D3D12Buffer *D3D12_INTERNAL_CreateBuffer(
     D3D12_RESOURCE_FLAGS resourceFlags = (D3D12_RESOURCE_FLAGS)0;
     D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON;
     HRESULT res;
+
+    // patch
+    Uint32 numElements = 1, stride = __size;
+
+    Uint32 overriden = 0;
+    if(_TTEPatches.CreateBufferCall_Stride != 0 && _TTEPatches.CreateBufferCall_NumElements != 0)
+    {
+        numElements = _TTEPatches.CreateBufferCall_NumElements;
+        stride = _TTEPatches.CreateBufferCall_Stride;
+        memset(&_TTEPatches, 0, sizeof(SDL_TelltaleEditorPatch));
+        overriden = 1;
+    }
 
     buffer = (D3D12Buffer *)SDL_calloc(1, sizeof(D3D12Buffer));
 
@@ -3707,7 +3719,7 @@ static D3D12Buffer *D3D12_INTERNAL_CreateBuffer(
 
     desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
     desc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
-    desc.Width = size;
+    desc.Width = stride * numElements;
     desc.Height = 1;
     desc.DepthOrArraySize = 1;
     desc.MipLevels = 1;
@@ -3746,12 +3758,15 @@ static D3D12Buffer *D3D12_INTERNAL_CreateBuffer(
             &buffer->uavDescriptor);
 
         uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-        uavDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+        uavDesc.Format = overriden ? DXGI_FORMAT_UNKNOWN : DXGI_FORMAT_R32_TYPELESS;
         uavDesc.Buffer.FirstElement = 0;
-        uavDesc.Buffer.NumElements = size / sizeof(Uint32);
-        uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+
+        // MODIFIED BY TTE. is raw normally. we want to use structured buffers otherwise ugly loadmatrix HLSL (slow!)
+        uavDesc.Buffer.NumElements = overriden ? numElements : ((numElements * stride) >> 2);
+        uavDesc.Buffer.Flags = overriden ? D3D12_BUFFER_UAV_FLAG_NONE : D3D12_BUFFER_UAV_FLAG_RAW;
+        uavDesc.Buffer.StructureByteStride = overriden ? stride : 0;
+
         uavDesc.Buffer.CounterOffsetInBytes = 0; // TODO: support counters?
-        uavDesc.Buffer.StructureByteStride = 0;
 
         // Create UAV
         ID3D12Device_CreateUnorderedAccessView(
@@ -3770,13 +3785,13 @@ static D3D12Buffer *D3D12_INTERNAL_CreateBuffer(
             D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
             &buffer->srvDescriptor);
 
-        srvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+        srvDesc.Format = overriden ? DXGI_FORMAT_UNKNOWN : DXGI_FORMAT_R32_TYPELESS;
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
         srvDesc.Buffer.FirstElement = 0;
-        srvDesc.Buffer.NumElements = size / sizeof(Uint32);
-        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
-        srvDesc.Buffer.StructureByteStride = 0;
+        srvDesc.Buffer.NumElements = overriden ? numElements : ((numElements * stride) >> 2);
+        srvDesc.Buffer.Flags = overriden ? D3D12_BUFFER_SRV_FLAG_NONE : D3D12_BUFFER_SRV_FLAG_RAW;
+        srvDesc.Buffer.StructureByteStride = overriden ? stride : 0;
 
         // Create SRV
         ID3D12Device_CreateShaderResourceView(
@@ -3794,7 +3809,7 @@ static D3D12Buffer *D3D12_INTERNAL_CreateBuffer(
             &buffer->cbvDescriptor);
 
         cbvDesc.BufferLocation = ID3D12Resource_GetGPUVirtualAddress(handle);
-        cbvDesc.SizeInBytes = size;
+        cbvDesc.SizeInBytes = numElements * stride;
 
         // Create CBV
         ID3D12Device_CreateConstantBufferView(
@@ -7049,7 +7064,10 @@ static void D3D12_ReleaseWindow(
     D3D12WindowData *windowData = D3D12_INTERNAL_FetchWindowData(window);
 
     if (windowData == NULL) {
-        SET_STRING_ERROR_AND_RETURN("Window already unclaimed!", );
+        bool prev = renderer->debug_mode; // i hate this message
+        renderer->debug_mode = false;
+         SET_STRING_ERROR_AND_RETURN("Window already unclaimed!", );
+         renderer->debug_mode = prev;
     }
 
     D3D12_Wait(driverData);

@@ -13,6 +13,9 @@
 template<typename T>
 class UIResourceEditor;
 
+template<typename T>
+struct UIResourceEditorRuntimeData;
+
 struct ChoreResource
 {
 
@@ -175,5 +178,6 @@ private:
     
     friend class ChoreAPI;
     friend class UIResourceEditor<Chore>;
+    friend struct UIResourceEditorRuntimeData<Chore>;
     
 };

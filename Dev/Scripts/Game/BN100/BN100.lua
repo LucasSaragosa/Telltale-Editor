@@ -44,6 +44,7 @@ function Bone1_GetGameDescriptor()
 	bone1.CommonSelector 	= "Bone1_CommonSelector" -- multiple vendors so we need a common class selector
 	MetaPushGameCapability(bone1, kGameCapSeparateAnimationTransform)
 	MetaPushGameCapability(bone1, kGameCapUsesLenc)
+	MetaPushGameCapability(bone1, kGameCapUninheritedLookAts)
 	MetaPushGameCapability(bone1, kGameCapRawClassNames)
 	MetaPushExecutableHash(bone1, "3F7E516806AD0638", "PC", "Demo_2005")
 	MetaPushExecutableHash(bone1, "65776A64C0D6236B", "PC", "v2.0_Main")
@@ -1105,8 +1106,6 @@ function RegisterBone100(vendor, platform)
 	RegisterBoneCollection(MetaCI, "class DCArray<class Handle<class AudioData> >", nil, hAud)
 	RegisterBoneCollection(MetaCI, "class Map<class String,class String,struct std::less<class String> >",
 		kMetaClassString, kMetaClassString)
-
-	--MetaDumpVersions()
 		
 	return true
 end

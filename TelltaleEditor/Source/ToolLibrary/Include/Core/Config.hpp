@@ -217,7 +217,7 @@ public:
         return *this;
     }
     
-    inline Handleable(Handleable&& rhs)
+    inline Handleable(Handleable&& rhs) noexcept
     {
         this->operator=(std::move(rhs));
     }

@@ -180,14 +180,13 @@ void SceneModule<SceneModuleType::SKELETON>::OnModuleRemove(SceneAgent* pAttache
 void SkeletonInstance::AddAnimatedValue(Ptr<PlaybackController> pController, Ptr<AnimationValueInterface> pAnimatedValue)
 {
     Ptr<AnimationMixerBase> pSelectedMixer{};
-    SklNode* pFoundNode=nullptr;
-    RuntimeSklNode* pRTNode = nullptr;
+    Ptr<SklNode> pFoundNode{};
     if(pAnimatedValue->GetType() != AnimationValueType::SKELETON_POSE)
     {
         pFoundNode = GetNode(pAnimatedValue->GetName());
         if(!pFoundNode)
         {
-            RuntimeSklNode* pRTNode = GetAddRuntimeNode(pAnimatedValue->GetName(), false);
+            Ptr<RuntimeSklNode> pRTNode = GetAddRuntimeNode(pAnimatedValue->GetName(), false);
             if(pRTNode)
             {
                 if(!pRTNode->TransformMixer)
@@ -226,18 +225,19 @@ void SkeletonInstance::AddAnimatedValue(Ptr<PlaybackController> pController, Ptr
     pSelectedMixer->AddValue(pController, pAnimatedValue, kDefaultContribution);
 }
 
-SkeletonInstance::RuntimeSklNode* SkeletonInstance::GetAddRuntimeNode(const String &name, Bool bCreate)
+Ptr<SkeletonInstance::RuntimeSklNode> SkeletonInstance::GetAddRuntimeNode(const String &name, Bool bCreate)
 {
     for(auto& node: _RuntimeNodes)
     {
-        if(CompareCaseInsensitive(node.Name, name))
+        if(CompareCaseInsensitive(node->Name, name))
         {
-            return &node;
+            return node;
         }
     }
     if(bCreate)
     {
-        RuntimeSklNode* pNode = &_RuntimeNodes.emplace_back();
+        Ptr<RuntimeSklNode>& pNode = _RuntimeNodes.emplace_back();
+        pNode = TTE_NEW_PTR(RuntimeSklNode, MEMORY_TAG_ANIMATION_DATA);
         pNode->Name = name;
         pNode->AgentName = this->_RootNode->AgentName;
         return pNode;
@@ -245,13 +245,13 @@ SkeletonInstance::RuntimeSklNode* SkeletonInstance::GetAddRuntimeNode(const Stri
     return nullptr;
 }
 
-SkeletonInstance::SklNode* SkeletonInstance::GetNode(const String &name)
+Ptr<SkeletonInstance::SklNode> SkeletonInstance::GetNode(const String &name)
 {
     for(auto& node: _Nodes)
     {
-        if(CompareCaseInsensitive(node.Name, name))
+        if(CompareCaseInsensitive(node->Name, name))
         {
-            return &node;
+            return node;
         }
     }
     return nullptr;
@@ -269,37 +269,36 @@ void SkeletonInstance::_ApplySkeletonInstanceRestPose(Scene* pScene, Ptr<Node>& 
         nodeIndex = 0;
         for(auto& node: _Nodes)
         {
-            if(node.Parent.lock() == rootNode)
+            if(node->Parent.lock() == rootNode)
                 _ApplySkeletonInstanceRestPose(pScene, rootNode, nodeIndex);
             nodeIndex++;
         }
     }
     else
     {
-        SkeletonInstance::SklNode& node = _Nodes[nodeIndex];
+        const Ptr<SkeletonInstance::SklNode>& node = _Nodes[nodeIndex];
         const SkeletonEntry& entry = _Skeleton->GetEntries()[nodeIndex];
         
         Transform local{entry.LocalRotation, entry.LocalPosition}; // relative to parent
-        node.BoneLength = entry.LocalPosition.Magnitude();
-        node.BoneDir = Vector3::Normalize(entry.LocalPosition) * node.BoneLength;
-        if(node.BoneLength <= 0.00001f)
+        node->BoneLength = entry.LocalPosition.Magnitude();
+        node->BoneDir = Vector3::Normalize(entry.LocalPosition) * node->BoneLength;
+        if(node->BoneLength <= 0.00001f)
         {
-            node.BoneScaleAdjust = Vector3::Identity;
-            node.BoneRotationAdjust = Quaternion::kIdentity;
+            node->BoneScaleAdjust = Vector3::Identity;
+            node->BoneRotationAdjust = Quaternion::kIdentity;
         }
         else
         {
-            node.BoneScaleAdjust = Vector3(node.BoneLength);
+            node->BoneScaleAdjust = Vector3(node->BoneLength);
             Vector3 animDir = Vector3::Normalize(entry.LocalPosition / entry.AnimTranslationScale);
-            node.BoneRotationAdjust = Quaternion::Rotate(entry.LocalPosition, animDir);
+            node->BoneRotationAdjust = Quaternion::Rotate(entry.LocalPosition, animDir);
         }
 
-        Ptr<Node> nodePtr = TTE_PROXY_PTR(&node, Node);
-        node.RestTransform = local;
-        Scene::UpdateNodeLocalTransform(nodePtr, local, true);
+        node->RestTransform = local;
+        Scene::UpdateNodeLocalTransform(node, local, true);
         
-        node.CurrentTransform._Rot = local._Rot;
-        node.CurrentTransform._Trans = (local._Trans / node.BoneScaleAdjust) * node.BoneRotationAdjust.Conjugate();
+        node->CurrentTransform._Rot = local._Rot;
+        node->CurrentTransform._Trans = (local._Trans / node->BoneScaleAdjust) * node->BoneRotationAdjust.Conjugate();
         
         for (I32 i = 0; i < _Skeleton->GetEntries().size(); ++i)
         {
@@ -321,19 +320,19 @@ void SkeletonInstance::Build(Handle<Skeleton> hSkeleton, const SceneAgent& agent
     _Nodes.clear();
     for(auto& entry: skl->GetEntries())
     {
-        SklNode& instNode = _Nodes.emplace_back();
-        instNode.AgentName = agent.Name;
-        instNode.Name = entry.JointName;
+        Ptr<SklNode>& instNode = _Nodes.emplace_back();
+        instNode = TTE_NEW_PTR(SklNode, MEMORY_TAG_ANIMATION_DATA);
+        instNode->AgentName = agent.Name;
+        instNode->Name = entry.JointName;
     }
     U32 node = 0;
     for(auto& entry: skl->GetEntries())
     {
-        SklNode& instNode = _Nodes[node];
+        Ptr<SklNode>& instNode = _Nodes[node];
         if(entry.ParentIndex <= -1)
-            agent.OwningScene->AttachNode(TTE_PROXY_PTR(&instNode, Node), _RootNode, false, false);
+            agent.OwningScene->AttachNode(instNode, _RootNode, false, false);
         else
-            agent.OwningScene->AttachNode(TTE_PROXY_PTR(&instNode, Node),
-                                          TTE_PROXY_PTR(&_Nodes[entry.ParentIndex], Node), false, false);
+            agent.OwningScene->AttachNode(instNode, _Nodes[entry.ParentIndex], false, false);
         ++node;
     }
     _Skeleton = std::move(skl);
@@ -348,12 +347,12 @@ void SkeletonInstance::Build(Handle<Skeleton> hSkeleton, const SceneAgent& agent
     }
 }
 
-void SkeletonInstance::_UpdateNode(SklNode &node, const Transform& value, const Transform& additiveValue, Float vecContrib, Float quatContrib, Bool bAdditive)
+void SkeletonInstance::_UpdateNode(const Ptr<SklNode> &node, const Transform& value, const Transform& additiveValue, Float vecContrib, Float quatContrib, Bool bAdditive)
 {
     Transform v = value;
     
     // Blend transforms
-    Transform blended = node.CurrentTransform;
+    Transform blended = node->CurrentTransform;
     PerformMix<Quaternion>::Blend(blended._Rot, v._Rot, quatContrib);
     PerformMix<Vector3>::Blend(blended._Trans, v._Trans, vecContrib);
     
@@ -365,23 +364,23 @@ void SkeletonInstance::_UpdateNode(SklNode &node, const Transform& value, const 
      }*/
     
     // Save blended transform
-    node.CurrentTransform = blended;
+    node->CurrentTransform = blended;
     
     // Apply bone scale and rotation adjust
-    Vector3 scaledTrans = blended._Trans * node.BoneScaleAdjust;
-    Vector3 adjustedTrans = scaledTrans * node.BoneRotationAdjust;
+    Vector3 scaledTrans = blended._Trans * node->BoneScaleAdjust;
+    Vector3 adjustedTrans = scaledTrans * node->BoneRotationAdjust;
     
     // Update scene node's local transform
     Transform finalTransform = Transform(blended._Rot, adjustedTrans);
     finalTransform.Normalise();
-    Scene::UpdateNodeLocalTransform(TTE_PROXY_PTR(&node, Node), finalTransform, false);
+    Scene::UpdateNodeLocalTransform(node, finalTransform, false);
 }
 
 void SkeletonInstance::_UpdateSkeletonCachedRestPoses()
 {
     for(auto& node: _Nodes)
     {
-        node.CachedGlobalRestTransform = _ComputeGlobalRestTransform(TTE_PROXY_PTR(&node, Node));
+        node->CachedGlobalRestTransform = _ComputeGlobalRestTransform(node);
     }
 }
 
@@ -408,7 +407,7 @@ void SkeletonInstance::_ComputeSkeletonInstancePoseMatrices(Ptr<Node> node)
         U32 index = 0;
         for(auto& n: _Nodes)
         {
-            if(n.Name == node->Name)
+            if(n->Name == node->Name)
             {
                 break;
             }
@@ -546,18 +545,6 @@ Ptr<PlaybackController> AnimationManager::ApplyAnimation(Scene* scene, Ptr<Anima
     controller->_Length = pAnimation->_Length;
     
     return controller;
-}
-
-Ptr<PlaybackController> AnimationManager::FindAnimation(const String &name)
-{
-    for(auto& controller: _Controllers)
-    {
-        if(CompareCaseInsensitive(controller->GetName(), name))
-        {
-            return controller;
-        }
-    }
-    return nullptr;
 }
 
 void AnimationManager::_SetNode(Ptr<Node>& node)
@@ -812,12 +799,13 @@ PlaybackController::PlaybackController(String name, Scene* scene, Float len) : _
 {
     _Scene = scene;
     TTE_ASSERT(scene, "Scene must be specified");
-    scene->_Controllers.insert(this);
+    _Scene->_Controllers.insert(this);
 }
 
 PlaybackController::~PlaybackController()
 {
-    _Scene->_Controllers.erase(_Scene->_Controllers.find(this));
+    TTE_ASSERT(_Scene, "Corrupt playback controller");
+    _Scene->_Controllers.erase(this);
 }
 
 void PlaybackController::Play()
@@ -872,10 +860,11 @@ void PlaybackController::Advance(Float elapsedTimeSeconds)
             }
             else
             {
-                // On finish callbacks?
                 _ControllerFlags.Remove(Flag::ACTIVE);
                 _ControllerFlags.Remove(Flag::PAUSED);
                 _Time = 0.0f;
+                const void* arg = this;
+                _PlaybackCompletionCallbacks.CallErased(&arg, 0, 0, 0, 0, 0, 0, 0);
             }
         }
         else
@@ -1121,13 +1110,44 @@ void SkeletonPoseCompoundValue::_ResolveSkeleton(const Skeleton* pSkeleton, Bool
 {
     if(_ResolvedSkeletonSerial != pSkeleton->GetSerial() || _ResolvedSkeletonIsMirrored != bMirrored)
     {
-        for(auto it = _Values.begin(); ; it++)
+        I32 _index = -1;
+        Bool onadditive = false;
+        for(;;)
         {
-            if(it == _Values.end())
-                it = _AdditiveValues.begin();
-            if(it == _AdditiveValues.end())
-                break;
-            auto& animated = *it;
+            _index++;
+            SkeletonPoseCompoundValue::Entry* entry = 0;
+            if(!onadditive)
+            {
+                if(_index >= _Values.size())
+                {
+                    _index = 0;
+                    onadditive = true; 
+                    if (_AdditiveValues.empty())
+                        break;
+                    entry = &*_AdditiveValues.begin();
+                }
+                else
+                {
+                    auto it = _Values.begin();
+                    std::advance(it, _index);
+                    entry = &*it;
+                }
+            }
+            else
+            {
+                if (_index >= _AdditiveValues.size())
+                {
+                    break;
+                }
+                else
+                {
+                    auto it = _AdditiveValues.begin();
+                    std::advance(it, _index);
+                    entry = &*it;
+                }
+            }
+            TTE_ASSERT(entry, "INTERNAL ERROR");
+            auto& animated = *entry;
             I32 index = -1;
             I32 curIndex = 0;
             for(const auto& skl: pSkeleton->GetEntries())
@@ -1373,18 +1393,44 @@ SkeletonPoseCompoundValue::ComputeValue(void *Value, Ptr<PlaybackController> Con
     ComputedValue<SkeletonPose>& output = *((ComputedValue<SkeletonPose>*)Value);
     const Bool bMirrored = Controller->IsMirrored();
     _ResolveSkeleton(output.Skl, bMirrored);
-    Bool bAdditive = false;
-    //Float runningContrib = 0.0f;
-    for(auto it = _Values.begin(); ; it++)
+    I32 _index = -1;
+    Bool onadditive = false;
+    for (;;)
     {
-        if(it == _Values.end())
+        _index++;
+        SkeletonPoseCompoundValue::Entry* entry = 0;
+        if (!onadditive)
         {
-            it = _AdditiveValues.begin();
-            bAdditive = true;
+            if (_index >= _Values.size())
+            {
+                _index = 0;
+                onadditive = true;
+                if (_AdditiveValues.empty())
+                    break;
+                entry = &*_AdditiveValues.begin();
+            }
+            else
+            {
+                auto it = _Values.begin();
+                std::advance(it, _index);
+                entry = &*it;
+            }
         }
-        if(it == _AdditiveValues.end())
-            break;
-        auto& animated = *it;
+        else
+        {
+            if (_index >= _AdditiveValues.size())
+            {
+                break;
+            }
+            else
+            {
+                auto it = _AdditiveValues.begin();
+                std::advance(it, _index);
+                entry = &*it;
+            }
+        }
+        TTE_ASSERT(entry, "INTERNAL ERROR");
+        auto& animated = *entry;
         if(animated.BoneIndex >= 0 && Contributions[animated.BoneIndex] > 0.00001f)
         {
             ComputedValue<Transform> computedBoneTransform{};
@@ -1393,10 +1439,10 @@ SkeletonPoseCompoundValue::ComputeValue(void *Value, Ptr<PlaybackController> Con
             Float maxContrib = fmaxf(computedBoneTransform.Vec3Contrib, computedBoneTransform.QuatContrib);
             //runningContrib += maxContrib;
             if(bMirrored)
-                PerformMix<Transform>::Mirror(bAdditive ? computedBoneTransform.AdditiveValue : computedBoneTransform.Value);
+                PerformMix<Transform>::Mirror(onadditive ? computedBoneTransform.AdditiveValue : computedBoneTransform.Value);
             output.Contribution[animated.BoneIndex] = maxContrib;
             output.Value.Entries[animated.BoneIndex] = computedBoneTransform.Value;
-            if(bAdditive)
+            if(onadditive)
                 output.AdditiveValue.Entries[animated.BoneIndex] = computedBoneTransform.AdditiveValue;
         }
     }

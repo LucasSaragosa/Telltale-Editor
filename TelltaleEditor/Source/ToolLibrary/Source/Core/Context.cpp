@@ -30,13 +30,13 @@ Bool IsCallingFromMain()
 
 static ToolContext* GlobalContext = nullptr;
 
-ToolContext* CreateToolContext(LuaFunctionCollection API)
+ToolContext* CreateToolContext(LuaFunctionCollection API, LuaFunctionCollection workerAPI)
 {
     
     if(GlobalContext == nullptr)
     {
         GlobalContext = (ToolContext*)TTE_ALLOC(sizeof(ToolContext), MEMORY_TAG_TOOL_CONTEXT); // alloc raw and construct, as its private.
-        new (GlobalContext) ToolContext(std::move(API)); // construct after as some asserts require
+        new (GlobalContext) ToolContext(API, workerAPI); // construct after as some asserts require
     }
     else
     {
@@ -204,7 +204,7 @@ ToolContext::~ToolContext()
     // Lua shuts down automatically in dtor
 }
 
-ToolContext::ToolContext(LuaFunctionCollection PerState)
+ToolContext::ToolContext(LuaFunctionCollection lvm, LuaFunctionCollection workerAPI)
 {
     Memory::Initialise();
     DataStreamManager::Initialise();
@@ -212,11 +212,12 @@ ToolContext::ToolContext(LuaFunctionCollection PerState)
     _L[0].Initialise(LuaVersion::LUA_5_2_3);
     _L[1].Initialise(LuaVersion::LUA_5_1_4);
     _L[2].Initialise(LuaVersion::LUA_5_0_2);
-    Meta::Initialise();
     
     // higher level lua api for each thread, including this context
-    _PerStateCollection = std::move(PerState);
-    ScriptManager::RegisterCollection(GetLibraryLVM(), _PerStateCollection);
+    _PerStateCollection = std::move(workerAPI);
+    ScriptManager::RegisterCollection(GetLibraryLVM(), lvm);
+
+    Meta::Initialise();
     
     DataStreamRef symbols = LoadLibraryResource("SymbolMaps/RuntimeSymbols.symmap"); // Load runtime symbols
     GetRuntimeSymbols().SerialiseIn(symbols);

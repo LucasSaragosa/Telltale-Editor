@@ -39,7 +39,6 @@ function RegisterBoneD3DMeshUpdated(platform, vendor, bb, hTexture, arrayDCInt, 
     triangleSet.Members[26] = NewMember("mAlphaMode", kMetaInt)
     triangleSet.Members[27] = NewMember("mfReflectivity", kMetaFloat)
     MetaRegisterClass(triangleSet)
-
     local arrayTriangleSet, _ = RegisterBoneCollection(MetaCI, "class DCArray<class D3DMesh::TriangleSet>", nil, triangleSet)
 
     local meshEntry = NewClass("struct D3DMesh::PaletteEntry", 0)

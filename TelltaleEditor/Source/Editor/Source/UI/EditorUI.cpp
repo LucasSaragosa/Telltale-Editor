@@ -115,7 +115,7 @@ void EditorUI::OnFileClick(const String& resourceLocation)
                 return TTE_NEW_PTR(UIPropertySet, MEMORY_TAG_EDITOR_UI, info.Resource, ui, info.ViewTitle, hProp.GetObject(r, true));
             });
         }
-        else if(_TestOpenEditor<Chore>("chore", fileName, resourceLocation))
+        else if(_TestOpenEditor<Chore>(FileGetExtension(fileName), fileName, resourceLocation))
         {
             ;
         }
@@ -211,6 +211,8 @@ void EditorUI::DispatchEditorImmediate(Ptr<UIResourceEditorBase> allocated)
 
 Bool EditorUI::Render()
 {
+
+    GetApplication().GetRegistry()->Update(10.f / 1000.f, PreloadMask);
 
     if(_UpdateTicker.Tick())
     {
@@ -765,8 +767,8 @@ void InspectorView::_InitModuleCache(Meta::ClassInstance agentProps, SceneModule
         Getter.OutName = &moduleName;
         Getter.OutID = &moduleID;
         SceneModuleUtil::PerformRecursiveModuleOperation(SceneModuleUtil::ModuleRange::ALL, std::move(Getter));
-        auto it = _MyContext->_ModuleVisualProperties.find(moduleID);
-        if(it != _MyContext->_ModuleVisualProperties.end())
+        auto it = ApplicationScriptRegistrar::Get()._ModuleVisualProperties.find(moduleID);
+        if(it != ApplicationScriptRegistrar::Get()._ModuleVisualProperties.end())
         {
             std::vector<PropertyRuntimeInstance> props{};
             for(const auto& entry: it->second.VisualProperties)
@@ -1215,7 +1217,7 @@ U32 luaRegisterModuleUI(LuaManager& man)
     }
 
     elem.ImagePath = man.ToString(2);
-    _MyContext->_ModuleVisualProperties[std::move(modid)] = std::move(elem);
+    ApplicationScriptRegistrar::Get()._ModuleVisualProperties[std::move(modid)] = std::move(elem);
 
     return 0;
 }
@@ -1829,6 +1831,7 @@ void SceneView::_UpdateViewNoActiveScene(Ptr<Scene> pEditorScene, SceneViewData&
 
 void SceneView::_UpdateView(Ptr<Scene> pEditorScene, SceneViewData& viewData, Bool bWindowFocused)
 {
+    pEditorScene->UpdateTick(_EditorUI.GetApplication().GetRenderContext()->GetLastDeltaTime(), _EditorUI.GetApplication().GetRenderContext()->GetCurrentFrameNumber());
     _UpdateViewNoActiveScene(pEditorScene, viewData, bWindowFocused); // update base without scene
     // with active scene specific render stuff
 }

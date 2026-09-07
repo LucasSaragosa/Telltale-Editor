@@ -6,7 +6,7 @@
 
 #include <queue>
 
-// SCENE RUNTIME MANAGER.
+// SCENE RUNTIME MANAGER. This isnt in use at the moment but will be in the future, as a wrapper to just run the game from launch.
 
 enum class SceneMessageType : U32
 {

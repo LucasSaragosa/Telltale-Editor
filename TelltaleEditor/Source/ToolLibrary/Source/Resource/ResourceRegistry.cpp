@@ -89,7 +89,7 @@ Bool StringMask::MaskCompare(CString pattern, CString str, CString end, MaskMode
 
 Bool StringMask::MatchSearchMask(CString testString,CString searchMask,StringMask::MaskMode mode, Bool* excluded)
 {
-    if (!*searchMask) return true;  // Empty mask matches everything
+    // if (!*searchMask) return true;  // Empty mask matches everything. ACTUALLY no ill hold off on this
     
     Bool foundMatch = false;
     
@@ -2549,6 +2549,11 @@ void HandleObjectInfo::_OnUnload(ResourceRegistry &registry, std::unique_lock<st
     ;
 }
 
+Bool HandleBase::Exists(Ptr<ResourceRegistry>& registry)
+{
+    return _ResourceName ? registry->ResourceExists(_ResourceName) : false;
+}
+
 Bool HandleBase::IsLoaded(Ptr<ResourceRegistry> &registry)
 {
     return _ResourceName ? registry->_EnsureHandleLoadedLocked(*this, true) : false;
@@ -3094,6 +3099,11 @@ void ResourceRegistry::Update(Float budget, String uMaskTest)
         _AsyncProcessCallbacksUnlocked(uMaskTest.c_str());
         if(GetTimeStampDifference(start, GetTimeStamp()) >= budget)
             return;
+    }
+
+    if(!uMaskTest.empty() && uMaskTest != "*")
+    {
+        return; // only update the selected file if mask selected.
     }
     
     // REMOVE UNUSED PRELOAD JOB REFS

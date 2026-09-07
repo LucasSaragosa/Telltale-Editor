@@ -4,17 +4,57 @@
 
 #include <sstream>
 
+extern Float kDefaultContribution[256];
+TelltaleEditor* _MyContext = nullptr;
+static void (*_EditorLuaCollector)(LuaFunctionCollection&) = nullptr;
+
 static constexpr std::initializer_list<CString> TTE_LUA_CACHED_PROCEDURES = { "ProceduralLookAt_OnAttach", "RegisterModuleUI" };
 
 void luaCompleteGameEngine(LuaFunctionCollection& Col); // Full game engine (Telltale). See LuaGameEngine.cpp
 
-extern Float kDefaultContribution[256];
-TelltaleEditor* _MyContext = nullptr;
+LuaFunctionCollection TelltaleEditor::GetLuaRegistry(LuaScriptCollectionBitSet which, Bool bWorker)
+{
+    LuaFunctionCollection collect{};
 
-TelltaleEditor* CreateEditorContext(GameSnapshot s)
+    for(const auto& bit: which)
+    {
+        switch(bit)
+        {
+            case LuaScriptCollection::COMMON_MAIN_ENGINE:
+                luaCompleteGameEngine(collect); // from Common
+                break;
+            case LuaScriptCollection::TOOL_LIBRARY_MAIN_ENGINE:
+                collect.Append(luaGameEngine(bWorker)); // from ToolLibrary (patch), also done
+                break;
+            case LuaScriptCollection::PROP_KEYS:
+                for (const auto& prop : GetPropKeyConstants())
+                {
+                    PUSH_GLOBAL_S(collect, prop.first, prop.second, "Telltale Property Keys");
+                }
+                break;
+            case LuaScriptCollection::TTE_API:
+                collect.Append(luaLibraryAPI(bWorker));
+                break;
+            case LuaScriptCollection::COMMON_CLASS_API:
+                collect.Append(CreateCommonClassesScriptAPI());
+                break;
+            case LuaScriptCollection::EDITOR_ONLY_API:
+                TTE_ASSERT(_EditorLuaCollector != nullptr, "Please create an editor context before anything else!");
+                _EditorLuaCollector(collect);
+                break;
+            default:
+                TTE_ASSERT("Please update TelltaleEditor::GetLuaRegistry for unknown script collection type");
+                break;
+        }
+    }
+
+    return collect;
+}
+
+TelltaleEditor* CreateEditorContext(GameSnapshot s, Callbacks&& pre, Callbacks&& post, void (*luaEditorCollect)(LuaFunctionCollection&))
 {
     TTE_ASSERT(_MyContext == nullptr, "A context already exists");
-    TTE_NEW(TelltaleEditor, MEMORY_TAG_TOOL_CONTEXT, s); // constructor stores into mycontext
+    TTE_NEW(TelltaleEditor, MEMORY_TAG_TOOL_CONTEXT, s, std::move(pre), std::move(post), luaEditorCollect); // constructor stores into mycontext
     for (U32 i = 0; i < 256; i++)
         kDefaultContribution[i] = 1.0f;
     return _MyContext;
@@ -30,22 +70,19 @@ void FreeEditorContext()
     if (_MyContext)
         TTE_DEL(_MyContext);
     _MyContext = nullptr;
+    _EditorLuaCollector = nullptr;
 }
 
-TelltaleEditor::TelltaleEditor(GameSnapshot s)
+TelltaleEditor::TelltaleEditor(GameSnapshot s, Callbacks&& pre, Callbacks&& post, void (*luaEditorCollect)(LuaFunctionCollection&)) : _PreSwitchCallbacks(std::move(pre)), _PostSwitchCallbacks(std::move(post))
 {
+    _EditorLuaCollector = luaEditorCollect;
     _MyContext = this;
     RegisterCommonClassInfo();
 
-    LuaFunctionCollection commonAPI = CreateScriptAPI(); // Common class API
-    luaCompleteGameEngine(commonAPI); // Telltale full API
+    LuaScriptCollectionBitSet toRegister = LuaScriptCollectionBitSet::All();
+    toRegister.Set(LuaScriptCollection::COMMON_MAIN_ENGINE, false); // dont need rest yet (massive amount of API here), only in Scene runtime.
 
-    for(const auto& prop: GetPropKeyConstants())
-    {
-        PUSH_GLOBAL_S(commonAPI, prop.first, prop.second, "Telltale Property Keys");
-    }
-
-    _ModdingContext = CreateToolContext(std::move(commonAPI));
+    _ModdingContext = CreateToolContext(GetLuaRegistry(toRegister, false), GetLuaRegistry(toRegister, true));
 
     if(s.ID.length() > 0)
     {
@@ -63,7 +100,7 @@ void TelltaleEditor::_PostSwitch(GameSnapshot snap)
     PlatformInputMapper::Shutdown();
     PlatformInputMapper::Initialise(snap.Platform);
 
-    _ModuleVisualProperties.clear();
+    _PostSwitchCallbacks.CallErased(&snap, 0, 0, 0, 0, 0, 0, 0);
 
     if(!_ModdingContext->PushCachedLuaProcedure("RegisterModuleUI"))
     {
@@ -77,6 +114,8 @@ void TelltaleEditor::_PostSwitch(GameSnapshot snap)
 
 void TelltaleEditor::Switch(GameSnapshot s)
 {
+    GameSnapshot copy = s; // just in case pre modifies (not allowed)
+    _PreSwitchCallbacks.CallErased(&copy, 0, 0, 0, 0, 0, 0, 0);
     _ModdingContext->Switch(s, TTE_LUA_CACHED_PROCEDURES);
     _PostSwitch(s);
 }
@@ -90,7 +129,6 @@ TelltaleEditor::~TelltaleEditor()
     GetRuntimeSymbols().SerialiseOut(symbols);
 
     RenderContext::Shutdown();
-    _ModuleVisualProperties.clear();
 
     DestroyToolContext();
     _ModdingContext = nullptr;

@@ -7,14 +7,14 @@
 #include <Core/Symbol.hpp>
 
 #include <UI/MenuBar.hpp>
-#include <UI/EditorUI.hpp>
+#include <UI/UIEditors.hpp>
 
 #include <unordered_map>
 #include <set>
 #include <map>
 #include <queue>
-
 #include <SDL3/SDL_surface.h>
+#include <imgui.h>
 
 #define WORKSPACE_KEY_LANG "Workspace - Language"
 
@@ -32,8 +32,22 @@ enum class ApplicationFlag
     MEMORY_WINDOW_OPEN = 16,
 };
 
-void ImGui_ImplSDLGPU3_RenderDrawData(ImDrawData* draw_data, SDL_GPUCommandBuffer* command_buffer,
-                                      SDL_GPURenderPass* render_pass, SDL_GPUGraphicsPipeline* pipeline, uint32_t* popup_filter);
+// All functionality tied to UI, ie which isn't included when Common library is built separately. Singleton
+struct ApplicationScriptRegistrar
+{
+
+    std::unordered_map<String, ModuleUI> _ModuleVisualProperties;
+
+    static ApplicationScriptRegistrar& Get();
+
+    inline void Reset()
+    {
+        _ModuleVisualProperties.clear();
+    }
+
+};
+
+void ImGui_ImplSDLGPU3_RenderDrawData(ImDrawData* draw_data, SDL_GPUCommandBuffer* command_buffer, SDL_GPURenderPass* render_pass, SDL_GPUGraphicsPipeline* pipeline, uint32_t* popup_filter);
 
 /**
  * Main Telltale Editor application, UI interface. The normal TelltaleEditor class is just the functionality which can be used without the UI.

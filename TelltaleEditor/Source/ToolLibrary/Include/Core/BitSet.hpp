@@ -2,14 +2,61 @@
 
 #include <Core/Config.hpp>
 
-#include <memory>
 #include <array>
+#include <cstdint>
+#include "Util.hpp"
+#include <cstring>
 
 // HELPER FROM TELLTALE TOOL LIB (IMPROVED)
 template<U32 N>
 struct _BitSet_BaseN
 {
     static constexpr U32 _N = (N + 31) >> 5;
+};
+
+template<typename EnumClass, U32 Num, EnumClass FirstValue>
+class BitSet;
+
+template <typename...>
+inline constexpr Bool _BitSetHelper_Df = false;
+
+template<typename FromBitSet, typename ToBitSet>
+struct _BitSet_Clamper
+{
+
+   static inline constexpr ToBitSet _Clamp(const FromBitSet& from)
+   {
+       static_assert(_BitSetHelper_Df<FromBitSet>, "Incompatible types cannot be used here"); // must both be same EnumClass bitsets, see below
+   }
+
+};
+
+template<typename EnumClass, U32 FromNum, EnumClass FromFirstValue, U32 ToNum, EnumClass ToFirstValue>
+struct _BitSet_Clamper<BitSet<EnumClass, FromNum, FromFirstValue>, BitSet<EnumClass, ToNum, ToFirstValue>>
+{
+
+    using ToBitSet = BitSet<EnumClass, ToNum, ToFirstValue>;
+    using FromBitSet = BitSet<EnumClass, FromNum, FromFirstValue>;
+
+    static constexpr U32 _Fs = (U32)FromFirstValue;
+    static constexpr U32 _Fe = FromNum + (U32)FromFirstValue;
+    static constexpr U32 _Ts = (U32)ToFirstValue;
+    static constexpr U32 _Te = ToNum + (U32)ToFirstValue;
+
+    static_assert((_Fs < _Te) && (_Ts < _Fe), "Bitsets do not overlap");
+
+    static constexpr ToBitSet _Clamp(const FromBitSet& from)
+    {
+        ToBitSet set{};
+        constexpr U32 subRangeStart = MAX(_Ts, _Fs);
+        constexpr U32 subRangeEnd = MIN(_Te, _Fe);
+        for(U32 i = subRangeStart; i <= subRangeEnd; i++)
+        {
+            set.Set((EnumClass)i, true);
+        }
+        return set;
+    }
+
 };
 
 /**
@@ -38,9 +85,25 @@ public:
     constexpr inline BitSet() : _Words() {}
 
     constexpr inline BitSet(const BitSet& rhs) : _Words(rhs._Words) {}
+
+    // Bitset with all set
+    constexpr static inline BitSet All()
+    {
+        BitSet bits{};
+        for (U32 i = 0; i < NumWords; i++)
+            bits._Words[i] = UINT32_MAX;
+        return bits;
+    }
+
+    // convert this bitset to another. must share same EnumClass and have at least one overlapping bit otherwise static assert will fail.
+    template<typename ToBitSet>
+    constexpr inline ToBitSet ClampRange() const
+    {
+        return _BitSet_Clamper<BitSet, ToBitSet>::_Clamp(*this);
+    }
     
     // Accesses
-    inline Bool operator[](EnumClass index) const
+    constexpr inline Bool operator[](EnumClass index) const
     {
         TTE_ASSERT((U32)index >= MinValue && (U32)index < MaxValue, "Invalid index");
         U32 ind = (U32)index - MinValue;
@@ -48,7 +111,7 @@ public:
     }
     
     // Assigns
-    inline void Set(EnumClass index, Bool val)
+    constexpr inline void Set(EnumClass index, Bool val)
     {
         TTE_ASSERT((U32)index >= MinValue && (U32)index < MaxValue, "Invalid index");
         U32 ind = (U32)index - MinValue;
@@ -59,21 +122,21 @@ public:
     }
     
     // sets all bits in RHS set in this one
-    inline void Import(const BitSet& rhs)
+    constexpr inline void Import(const BitSet& rhs)
     {
         for(U32 i = 0; i < NumWords; i++)
             _Words[i] |= rhs._Words[i];
     }
 
     // keep bits in this bitset that are set in the rhs
-    inline void Mask(const BitSet& rhs)
+    constexpr inline void Mask(const BitSet& rhs)
     {
         for (U32 i = 0; i < NumWords; i++)
             _Words[i] &= rhs._Words[i];
     }
 
     // Counts number of set bits in range
-    inline U32 CountBits(EnumClass first, U32 num) const
+    constexpr inline U32 CountBits(EnumClass first, U32 num) const
     {
         U32 N = 0;
         for(U32 i = 0; i < num; i++)
@@ -224,7 +287,6 @@ private:
     {
         return static_cast<U32>(e);
     }
-
     constexpr inline void _SetCE(EnumClass e)
     {
         U32 index = _ToBitHelper(e);
@@ -238,6 +300,10 @@ private:
 template<typename EnumClass, EnumClass FirstValue, EnumClass EndValue>
 using BitSetRanged = BitSet<EnumClass, (U32)EndValue - (U32)FirstValue, FirstValue>;
 
+// 0 is first EnumClass::NUM is num
+template<typename EnumClass>
+using BitSetFullRange = BitSet<EnumClass, (U32)EnumClass::NUM, (EnumClass)0>;
+
 /**
  Simple type to help with flags.
  */
@@ -245,10 +311,31 @@ class Flags
 {
     
     U32 _Value = 0;
+
+    // Add all compile time bits
+    template<typename... Values>
+    constexpr inline void _AddCEs()
+    {
+        (_SetCE(Values), ...);
+    }
+
+    template<typename T>
+    constexpr inline void _SetCE(T e)
+    {
+        Add((U32)e);
+    }
     
 public:
     
     Flags() = default;
+
+    template<typename... Values>
+    static constexpr inline Flags MakeWith()
+    {
+        Flags f{};
+        f._AddCEs<Values...>();
+        return f;
+    }
     
     inline Flags(U32 val) : _Value(val) {}
     

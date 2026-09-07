@@ -110,6 +110,8 @@ public:
     Bool IsLoaded(Ptr<ResourceRegistry>& registry); // return if its currently loaded. Will return false if there is a future load in progress which hasn't been progressed
     
     void EnsureIsLoaded(Ptr<ResourceRegistry>& registry); // ensure this handle is currently loaded, the latest load
+
+    Bool Exists(Ptr<ResourceRegistry>& registry); // if this resource exists
     
     // sets object file (eg a .d3dmesh). Specify to unload old resource, and if you want to ensure its loaded.
     template<typename T>
@@ -267,6 +269,11 @@ public:
     inline Bool IsLoaded(Ptr<ResourceRegistry>& registry)
     {
         return HandleBase::IsLoaded(registry);
+    }
+
+    inline Bool Exists(Ptr<ResourceRegistry>& registry)
+    {
+        return HandleBase::Exists(registry);
     }
     
     inline Symbol GetObject() const
@@ -1169,7 +1176,7 @@ public:
     // See Preload(). Preload but with a callback, in which a vector of symbols is passed (the resource names), as a const std::vector<Symbol>*!! POINTER!
     // Specify to lock the callback to only be called on the thread which calls this. In this case, you need to periodically call Update on this thread.
     // Also specify a mask (default *) in which that must be passed into ResourceRegistry::Update to process your callback, for finer control.
-    U32 PreloadWithCallback(std::vector<HandleBase>&& resourceHandles, Bool bOverwrite, Ptr<FunctionBase> pCallback, Bool bLockCallbackToCalleeThread, String uMask = "*");
+    U32 PreloadWithCallback(std::vector<HandleBase>&& resourceHandles, Bool bOverwrite, Ptr<FunctionBase> pCallback, Bool bLockCallbackToCalleeThread, String uMask);
     
     // Preload offset. If bigger or equal to a return value of a previous Preload(), you can ensure all of those handles have loaded.
     U32 GetPreloadOffset();
@@ -1195,6 +1202,7 @@ public:
         return _CreateCachedResourceUnlocked(name, pObject, {});
     }
 
+    // Creates unsavable cached prop in memory
     inline Bool CreateCachedPropertySet(String name, Meta::ClassInstance propInstance)
     {
         TTE_ASSERT(propInstance, "The property set cannot be null!");

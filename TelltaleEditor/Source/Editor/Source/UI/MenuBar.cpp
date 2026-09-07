@@ -2,6 +2,8 @@
 #include <UI/UIEditors.hpp>
 #include <nfd.h>
 #include <imgui.h>
+#include <Common/Animation.hpp>
+#include <AnimationManager.hpp>
 
 DECL_VEC_ADDITION();
 
@@ -39,6 +41,42 @@ static Bool _AsyncScriptExec(const JobThread& thread, void* userA, void* userB)
     return bResult;
 }
 
+void MenuBar::_DoPlayAnimation(std::vector<Symbol>* singleFile)
+{
+    TTE_ASSERT(singleFile && singleFile->size() == 1, "Invalid call"); // !!
+    if(singleFile && singleFile->size() == 1)
+    {
+        String targetAgent = _Editor.IsInspectingAgent && _Editor.InspectingNode.lock() ? _Editor.InspectingNode.lock()->AgentName : "";
+        if(targetAgent.empty())
+        {
+            PlatformMessageBoxAndWait("No Selected Agent", _Editor.GetLanguageText("misc.need_agent"));
+        }
+        else
+        {
+            Handle<Animation> hAnim{};
+            hAnim.SetObject(_MyUI.GetRegistry(), (*singleFile)[0], false, true);
+            Ptr<PlaybackController> pController = _Editor.GetActiveScene().PlayAnimation(targetAgent, hAnim.GetObject(_MyUI.GetRegistry(), true), true); // DETACHED
+            pController->SetLooping(true);
+            pController->Play(); // play!
+        }
+    }
+}
+
+void MenuBar::_OnPlayAnimationSelect(String file) 
+{
+    Handle<Animation> hAnim{};
+    hAnim.SetObject(file);
+    if(hAnim.IsLoaded(_MyUI.GetRegistry()))
+    {
+        std::vector<Symbol> vec{}; vec.push_back(file);
+        _DoPlayAnimation(&vec);
+    }
+    else
+    {
+        _MyUI.GetRegistry()->PreloadWithCallback({ HandleBase{file} }, false, ALLOCATE_METHOD_CALLBACK_1(this, _DoPlayAnimation, MenuBar, std::vector<Symbol>*), true, EditorUI::PreloadMask);
+    }
+}
+
 void MenuBar::_OnExportOpen(String file)
 {
     nfdchar_t* op=0;
@@ -74,6 +112,8 @@ void MenuBar::_OnExportOpen(String file)
 
 Bool MenuBar::Render()
 {
+
+    // update a
 
     if (ImGui::BeginMainMenuBar())
     {
@@ -166,6 +206,13 @@ Bool MenuBar::Render()
     if(TestMenuOption("Game", "Dump Tracked Memory", "", 0, false, false))
     {
         Memory::DumpTrackedMemory();
+    }
+    if (TestMenuOption("File", "Play Animation on Selected Agent", "", 0, false, false))
+    {
+        if (!GetApplication()._ActivePopup)
+        {
+            GetApplication().SetCurrentPopup(TTE_NEW_PTR(PlayAnimationPopup, MEMORY_TAG_EDITOR_UI, "Pick Animation", ALLOCATE_METHOD_CALLBACK_1(this, _OnPlayAnimationSelect, MenuBar, String)), _Editor);
+        }
     }
     
     // NENU OPTION: WINDOW
