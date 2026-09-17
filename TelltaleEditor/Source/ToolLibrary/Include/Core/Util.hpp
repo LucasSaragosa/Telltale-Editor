@@ -266,7 +266,8 @@ public:
 
 // ================================================ STRING UTIL ================================================
 
-inline String StringTrim(const String& str) {
+inline String StringTrim(const String& str) 
+{
     size_t first = str.find_first_not_of(" \t\n\r\f\v");
     if (first == std::string::npos) return "";
     size_t last = str.find_last_not_of(" \t\n\r\f\v");
@@ -534,7 +535,8 @@ String MakeTypeName(String fullName);
 // ================================================== STRING MASK HELPER ==================================================
 
 /// A string mask to help find resources.
-class StringMask : public String {
+class StringMask : public String 
+{
 public:
     
     // MUST HAVE NO MEMBERS.

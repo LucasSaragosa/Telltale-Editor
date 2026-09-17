@@ -15,8 +15,6 @@
 #undef USE_PIX
 #endif
 
-#include <imgui_impl_sdl3.h>
-
 // ============================ ENUM MAPPINGS
 
 const TextureFormatInfo& GetSDLFormatInfo(RenderSurfaceFormat format)
@@ -513,11 +511,6 @@ Bool RenderContext::FrameUpdate(Bool isLastFrame, SDL_GPUCommandBuffer* acq, SDL
         else
         {
             InputMapper::ConvertRuntimeEvents(e, events, (SDL_GetWindowFlags(_Window) & SDL_WINDOW_INPUT_FOCUS) != 0, windowSize);
-        }
-        if(acq)
-        {
-            // imgui update for UI
-            ImGui_ImplSDL3_ProcessEvent(&e);
         }
     }
 

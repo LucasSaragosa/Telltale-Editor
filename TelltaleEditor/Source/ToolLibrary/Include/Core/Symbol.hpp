@@ -75,7 +75,8 @@ extern const U32 CRC32_Table[256];
 
 // .SYMTAB FILES. SymbolTable keeps a memory of the strings that symbols represent. Serialised format is just text file of strings one each line.
 // If the line starts with 'CRC32:' then the CRC32 is registered instead (used for some other stuff)
-class SymbolTable {
+class SymbolTable 
+{
     
     static SymbolTable* _ActiveTables;
     

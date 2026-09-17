@@ -42,7 +42,7 @@ struct FunctionBase
     
     virtual U32 GetNumArguments() const = 0;
 
-    virtual MethodLockType GetMethodLockType() const = 0; // this is NONE for none method callbacks
+    virtual MethodLockType GetMethodLockType() const = 0; // this is NONE for non method callbacks
     
     virtual ~FunctionBase() = default;
     

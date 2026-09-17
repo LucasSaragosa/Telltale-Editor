@@ -187,14 +187,16 @@ public:
     _TotalMemUsed(0), _PageSize(pageSize), _CurrentPos(0), _PageCount(0), _FragmentedBytes(0) {}
     
     // destruct normally.
-    inline ~LinearHeap() {
+    inline ~LinearHeap() 
+    {
         ReleaseAll();
     }
     
     /**
      * Allocate size number of bytes with a optional align. Align can be from 1 to 8 and must be a power of two (1,2,4,8.).
      */
-    inline U8* Alloc(U32 size, U32 align = 1){
+    inline U8* Alloc(U32 size, U32 align = 1)
+    {
         Page* currentPage = _CurrentPage;
         U8* pRet = 0;
         if(currentPage){
@@ -222,7 +224,8 @@ public:
      * Allocates and returns T. Calls default ctor. The destructor will be called when you pop the current context.
      */
     template<typename T, typename... Args>
-    inline T* New(Args&&... args) {
+    inline T* New(Args&&... args) 
+    {
         ObjWrapper<T>* pAlloc = (ObjWrapper<T>*)Alloc(sizeof(ObjWrapper<T>), alignof(ObjWrapper<T>));
         pAlloc->_Next = 0;
         new (pAlloc) ObjWrapper<T>(args...);
@@ -234,7 +237,8 @@ public:
      * See New. Allocates an array of numElem consecutively in memory and returns it. Destructors will be called when the current context is popped.
      */
     template<typename T, typename... Args>
-    inline T* NewArray(U32 numElem, Args&&... argsForEachElem) {
+    inline T* NewArray(U32 numElem, Args&&... argsForEachElem) 
+    {
         ObjArrayWrapper<T>* pArrayWrapper = (ObjArrayWrapper<T>*)Alloc(sizeof(ObjArrayWrapper<T>), alignof(ObjArrayWrapper<T>));
         new (pArrayWrapper) ObjArrayWrapper<T>(); // set vfptrs
         pArrayWrapper->_Array = (T*)Alloc(sizeof(T) * numElem, alignof(T));
@@ -249,7 +253,8 @@ public:
      * Creates a new instance of T in this linear heap. Its constructor IS called, but destructor will not be called at all by this class so you will need to if you wish.
      */
     template<typename T>
-    inline T* NewNoDestruct() {
+    inline T* NewNoDestruct() 
+    {
         U8* pAlloc = Alloc(sizeof(T), alignof(T));
         new (pAlloc) T();
         return (T*)pAlloc;
@@ -259,7 +264,8 @@ public:
      * See NewNoDestruct. Array version. Consecutive in memory.
      */
     template<typename T>
-    inline T* NewArrayNoDestruct(U32 numElem) {
+    inline T* NewArrayNoDestruct(U32 numElem)
+    {
         U8* pAlloc = Alloc(sizeof(T) * numElem, alignof(T));
         for (U32 i = 0; i < numElem; i++)
             new (pAlloc + (i * sizeof(T))) T();
@@ -270,7 +276,8 @@ public:
      * Pushes a destructor context. This means all objects returned from New and NewArray after this call (without NoDestruct) will have their destructors called at the next PopContext,
      * which will pop this newly pushed context.
      */
-    inline void PushContext() {
+    inline void PushContext() 
+    {
         Context* pContext = NewNoDestruct<Context>();
         pContext->_Next = _ContextStack;
         _ContextStack = pContext;
@@ -279,7 +286,8 @@ public:
     /**
      * Pops a context. This will call destructors of any objects created using New or NewArray between the last call of PushContext and this call.
      */
-    inline void PopContext() {
+    inline void PopContext() 
+    {
         if(_ContextStack){
             _PopContextInt();
             if (!_CurrentPage)
@@ -290,7 +298,8 @@ public:
     /**
      * Returns the number of bytes free in the current page - anymore would require a new allocation.
      */
-    inline I32 GetCurrentPageBytesFree(){
+    inline I32 GetCurrentPageBytesFree()
+    {
         return _CurrentPage ? _CurrentPage->_Size - _CurrentPos : _PageSize;
     }
     
@@ -351,7 +360,8 @@ public:
     /**
      * Returns a string allocated with the contents of the given constant string. Length can be 0 in which the length will be calculated. The modifiable string is returned.
      */
-    inline U8* StringIntern(CString s, U32 length = 0){
+    inline U8* StringIntern(CString s, U32 length = 0)
+    {
         if (!length)
             length = (U32)strlen(s);
         U8* pAlloc = Alloc(length + 1, 1);

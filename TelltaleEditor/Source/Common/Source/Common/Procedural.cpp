@@ -49,6 +49,7 @@ void Procedural_LookAt::GetRenderParameters(Vector3& bgColourOut, CString& iconN
 
 void Procedural_LookAt::SetHostNode(String node)
 {
+    // TODO MORE FUNCIONALITY
     _HostNode = node;
 }
 

@@ -9,10 +9,10 @@
 
 #include <Common/Skeleton.hpp>
 
-#include <type_traits>
-
 // ======================================================== ANIMATION ENUMS
 // ========================================================
+
+extern Float kDefaultContribution[256];
 
 class PlaybackController;
 
@@ -448,7 +448,6 @@ private:
 
 class AnimationMixerBase;
 class PlaybackController;
-extern Float kDefaultContribution[256];
 
 struct AnimationMixerValueInfo
 {

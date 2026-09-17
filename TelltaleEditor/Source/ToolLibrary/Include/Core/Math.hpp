@@ -15,7 +15,8 @@ struct ColorHDR
 };
 
 /// Four part RGBA Colour.
-struct alignas(4) Colour {
+struct alignas(4) Colour 
+{
     
     float r, g, b, a;
     
@@ -33,7 +34,8 @@ struct alignas(4) Colour {
     }
     
     // less than
-    inline bool operator<(const Colour& rhs) const {
+    inline bool operator<(const Colour& rhs) const 
+    {
         return (r < rhs.r) || (r == rhs.r && (g < rhs.g || (g == rhs.g && (b < rhs.b || (b == rhs.b && a <= rhs.a)))));
     }
     
@@ -41,33 +43,40 @@ struct alignas(4) Colour {
     Colour RGBToRGBM(float ex, float scale);
     
     // convert colour format
-    inline Colour RGBMToRGB(float ex, float scale) {
+    inline Colour RGBMToRGB(float ex, float scale) 
+    {
         return Colour(powf(a * r * scale, ex), powf(a * g * scale, ex), powf(a * b * scale, ex), 1.0f);
     }
     
     // convert colour format
-    inline Colour GammaToLinear() {
+    inline Colour GammaToLinear() 
+    {
         return Colour(powf(r, 2.2f), powf(g, 2.2f), powf(b, 2.2f), a);
     }
     
     // convert colour format
-    inline Colour LinearToGamma() {
+    inline Colour LinearToGamma() 
+    {
         return Colour(powf(r, 1.0f / 2.2f), powf(g, 1.0f / 2.2f), powf(b, 1.0f / 2.2f), a);
     }
     
-    inline Colour operator*=(float mult) {
+    inline Colour operator*=(float mult) 
+    {
         return Colour(r * mult, g * mult, b * mult, a * mult);
     }
     
-    inline Colour operator/=(float mult) {
+    inline Colour operator/=(float mult)
+    {
         return operator*=(1.0f / mult);
     }
     
-    inline Colour operator+=(float mult) {
+    inline Colour operator+=(float mult) 
+    {
         return Colour(r + mult, g + mult, b + mult, a + mult);
     }
     
-    inline Colour operator-=(float mult) {
+    inline Colour operator-=(float mult) 
+    {
         return operator+=(-mult);
     }
     
@@ -1340,7 +1349,8 @@ struct Plane {
 };
 
 // Frustum plane index in plane array
-enum FRUSTUM_PLANE_INDEX {
+enum FRUSTUM_PLANE_INDEX 
+{
     FRUSTUM_PLANE_ZNEAR = 0,
     FRUSTUM_PLANE_LEFT = 1,
     FRUSTUM_PLANE_RIGHT = 2,

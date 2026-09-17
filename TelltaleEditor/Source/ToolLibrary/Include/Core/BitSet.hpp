@@ -313,7 +313,7 @@ class Flags
     U32 _Value = 0;
 
     // Add all compile time bits
-    template<typename... Values>
+    template<auto... Values>
     constexpr inline void _AddCEs()
     {
         (_SetCE(Values), ...);
@@ -329,7 +329,7 @@ public:
     
     Flags() = default;
 
-    template<typename... Values>
+    template<auto... Values>
     static constexpr inline Flags MakeWith()
     {
         Flags f{};

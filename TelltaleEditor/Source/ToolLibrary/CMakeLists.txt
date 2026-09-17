@@ -12,7 +12,7 @@ target_link_libraries(${TARGET_NAME} PUBLIC lua514)
 target_link_libraries(${TARGET_NAME} PUBLIC lua502)
 target_link_libraries(${TARGET_NAME} PUBLIC zlib)
 target_link_libraries(${TARGET_NAME} PUBLIC fastdelegate)
-target_link_libraries(${TARGET_NAME} PUBLIC imgui)
+# target_link_libraries(${TARGET_NAME} PUBLIC imgui) # move away from ImGui
 
 # SOURCE
 

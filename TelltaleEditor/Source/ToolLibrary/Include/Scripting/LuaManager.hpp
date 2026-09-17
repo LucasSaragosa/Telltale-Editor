@@ -20,7 +20,8 @@ enum class LuaVersion
     LUA_5_0_2 = 2,  // Lua 5.0.2
 };
 
-enum class LuaOp {
+enum class LuaOp 
+{
     EQ,//==
     LT,//<
     LE,//<=
@@ -33,7 +34,8 @@ enum class LoadChunkMode
     ANY
 };
 
-enum class LuaType {
+enum class LuaType 
+{
     NONE = -1,
     NIL = 0,
     BOOL = 1,

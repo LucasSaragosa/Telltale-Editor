@@ -1,12 +1,11 @@
-#include <QApplication>
-#include <QPushButton>
+#include <TelltaleEditor.hpp>
+#include <Application.hpp>
 
 int main(int argc, char** argv)
 {
-    QApplication app(argc, argv);
-
-    QPushButton button("Hello world !");
-    button.show();
-
-    return app.exec();
+    int exit = CommandLine::GuardedMain(argc, argv, &Application::RunApplication);
+#ifdef DEBUG
+    Memory::DumpTrackedMemory();
+#endif
+    return exit;
 }
