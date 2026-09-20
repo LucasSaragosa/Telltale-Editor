@@ -1,5 +1,5 @@
 #include <Application.hpp>
-#include <MainWindow.hpp>
+#include <Editor/MainWindow.hpp>
 
 #include <QApplication>
 #include <QMainWindow>
@@ -15,108 +15,109 @@
 
 /*static*/ I32 Application::RunApplication(const std::vector<CommandLine::TaskArgument>& args)
 {
-    // Run TTE
-    Application app{};
-    return app._Run(args);
+	// Run TTE
+	Application app{};
+	return app._Run(args);
 }
 
 I32 Application::_Run(const std::vector<CommandLine::TaskArgument>& args)
 {
-    int argc = 0;
-    char** argv = nullptr;
+	int argc = 0;
+	char** argv = nullptr;
 
-    QApplication qtApp(argc, argv);
+	QApplication qtApp(argc, argv);
 
-    MainWindow window;
-    window.show();
+	MainWindow window;
+	window.show();
 
-    return qtApp.exec();
-    // ------------------------------------------------------------
-    // Project Selection
-    // ------------------------------------------------------------
+	return qtApp.exec();
 
-    QMainWindow projectSelectionWindow;
-    projectSelectionWindow.setWindowTitle("Telltale Editor v0.0.1a");
-    projectSelectionWindow.resize(1200, 700);
+	// ------------------------------------------------------------
+	// Project Selection
+	// ------------------------------------------------------------
 
-    // Main content
-    auto* centralWidget = new QWidget(&projectSelectionWindow);
-    auto* mainLayout = new QHBoxLayout(centralWidget);
+	QMainWindow projectSelectionWindow;
+	projectSelectionWindow.setWindowTitle("Telltale Editor v0.0.1a");
+	projectSelectionWindow.resize(1200, 700);
 
-    // ============================================================
-    // Left: New Project
-    // ============================================================
+	// Main content
+	auto* centralWidget = new QWidget(&projectSelectionWindow);
+	auto* mainLayout = new QHBoxLayout(centralWidget);
 
-    auto* newProjectPanel = new QWidget(centralWidget);
-    auto* newProjectLayout = new QVBoxLayout(newProjectPanel);
+	// ============================================================
+	// Left: New Project
+	// ============================================================
 
-    auto* newProjectButton = new QPushButton("+\nNew Project", newProjectPanel);
+	auto* newProjectPanel = new QWidget(centralWidget);
+	auto* newProjectLayout = new QVBoxLayout(newProjectPanel);
 
-    newProjectButton->setMinimumSize(400, 400);
-    newProjectButton->setSizePolicy(
-        QSizePolicy::Expanding,
-        QSizePolicy::Expanding);
+	auto* newProjectButton = new QPushButton("+\nNew Project", newProjectPanel);
 
-    QFont newProjectFont = newProjectButton->font();
-    newProjectFont.setPointSize(20);
-    newProjectButton->setFont(newProjectFont);
+	newProjectButton->setMinimumSize(400, 400);
+	newProjectButton->setSizePolicy(
+		QSizePolicy::Expanding,
+		QSizePolicy::Expanding);
 
-    newProjectLayout->addWidget(
-        newProjectButton,
-        1,
-        Qt::AlignCenter);
+	QFont newProjectFont = newProjectButton->font();
+	newProjectFont.setPointSize(20);
+	newProjectButton->setFont(newProjectFont);
 
-    auto* recentPanel = new QWidget(centralWidget);
-    auto* recentLayout = new QVBoxLayout(recentPanel);
+	newProjectLayout->addWidget(
+		newProjectButton,
+		1,
+		Qt::AlignCenter);
 
-    auto* recentTitle = new QLabel("Recent Projects", recentPanel);
+	auto* recentPanel = new QWidget(centralWidget);
+	auto* recentLayout = new QVBoxLayout(recentPanel);
 
-    QFont titleFont = recentTitle->font();
-    titleFont.setPointSize(18);
-    titleFont.setBold(true);
-    recentTitle->setFont(titleFont);
+	auto* recentTitle = new QLabel("Recent Projects", recentPanel);
 
-    recentLayout->addWidget(recentTitle);
+	QFont titleFont = recentTitle->font();
+	titleFont.setPointSize(18);
+	titleFont.setBold(true);
+	recentTitle->setFont(titleFont);
 
-    auto* recentProjects = new QListWidget(recentPanel);
-    recentProjects->setSizePolicy(
-        QSizePolicy::Expanding,
-        QSizePolicy::Expanding);
+	recentLayout->addWidget(recentTitle);
 
-    // Temporary data.
-    // These will eventually come from your project manager/config.
-    recentProjects->addItem("Project Alpha");
-    recentProjects->addItem("Project Beta");
-    recentProjects->addItem("Project Gamma");
-    recentProjects->addItem("Project Delta");
+	auto* recentProjects = new QListWidget(recentPanel);
+	recentProjects->setSizePolicy(
+		QSizePolicy::Expanding,
+		QSizePolicy::Expanding);
 
-    recentLayout->addWidget(recentProjects, 1);
+	// Temporary data.
+	// These will eventually come from your project manager/config.
+	recentProjects->addItem("Project Alpha");
+	recentProjects->addItem("Project Beta");
+	recentProjects->addItem("Project Gamma");
+	recentProjects->addItem("Project Delta");
 
-    // ============================================================
-    // 75 / 25 split
-    // ============================================================
+	recentLayout->addWidget(recentProjects, 1);
 
-    mainLayout->addWidget(newProjectPanel, 3);
-    mainLayout->addWidget(recentPanel, 1);
+	// ============================================================
+	// 75 / 25 split
+	// ============================================================
 
-    projectSelectionWindow.setCentralWidget(centralWidget);
+	mainLayout->addWidget(newProjectPanel, 3);
+	mainLayout->addWidget(recentPanel, 1);
 
-    QObject::connect(newProjectButton, &QPushButton::clicked, [&]()
-    {
-        // TODO:
-        // Open your New Project window/dialog.
-    });
+	projectSelectionWindow.setCentralWidget(centralWidget);
 
-    QObject::connect(recentProjects,&QListWidget::itemDoubleClicked, [&](QListWidgetItem* item)
-    {
-        if (!item)
-            return;
+	QObject::connect(newProjectButton, &QPushButton::clicked, [&]()
+		{
+			// TODO:
+			// Open your New Project window/dialog.
+		});
 
-        // TODO:
-        // Open the selected project.
-    });
+	QObject::connect(recentProjects, &QListWidget::itemDoubleClicked, [&](QListWidgetItem* item)
+		{
+			if (!item)
+				return;
 
-    projectSelectionWindow.show();
+			// TODO:
+			// Open the selected project.
+		});
 
-    return qtApp.exec();
+	projectSelectionWindow.show();
+
+	return qtApp.exec();
 }

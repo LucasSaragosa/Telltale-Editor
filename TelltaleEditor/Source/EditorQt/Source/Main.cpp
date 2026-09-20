@@ -3,9 +3,9 @@
 
 int main(int argc, char** argv)
 {
-    int exit = CommandLine::GuardedMain(argc, argv, &Application::RunApplication);
+	int exit = CommandLine::GuardedMain(argc, argv, &Application::RunApplication);
 #ifdef DEBUG
-    Memory::DumpTrackedMemory();
+	Memory::DumpTrackedMemory();
 #endif
-    return exit;
+	return exit;
 }
