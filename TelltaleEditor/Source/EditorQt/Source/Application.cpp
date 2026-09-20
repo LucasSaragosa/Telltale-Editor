@@ -1,4 +1,5 @@
 #include <Application.hpp>
+#include <MainWindow.hpp>
 
 #include <QApplication>
 #include <QMainWindow>
@@ -26,12 +27,16 @@ I32 Application::_Run(const std::vector<CommandLine::TaskArgument>& args)
 
     QApplication qtApp(argc, argv);
 
+    MainWindow window;
+    window.show();
+
+    return qtApp.exec();
     // ------------------------------------------------------------
     // Project Selection
     // ------------------------------------------------------------
 
     QMainWindow projectSelectionWindow;
-    projectSelectionWindow.setWindowTitle("Select Project");
+    projectSelectionWindow.setWindowTitle("Telltale Editor v0.0.1a");
     projectSelectionWindow.resize(1200, 700);
 
     // Main content
@@ -113,17 +118,5 @@ I32 Application::_Run(const std::vector<CommandLine::TaskArgument>& args)
 
     projectSelectionWindow.show();
 
-    Bool running = true;
-
-    QObject::connect(&qtApp, &QCoreApplication::aboutToQuit, [&]()
-    {
-        running = false;
-    });
-
-    while (running)
-    {
-        qtApp.processEvents();
-    }
-
-    return 0;
+    return qtApp.exec();
 }
