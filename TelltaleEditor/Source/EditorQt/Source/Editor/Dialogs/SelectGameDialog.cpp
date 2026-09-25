@@ -1,4 +1,5 @@
 #include <Editor/Dialogs/SelectGameDialog.hpp>
+#include <Editor/AppSettings.hpp>
 
 #include <QLineEdit>
 #include <QComboBox>
@@ -26,88 +27,77 @@ SelectGameDialog::SelectGameDialog(QWidget* parent)
 	resize(640, 320);
 
 	// TODO: Add translations
-	m_folderEdit = new QLineEdit(this);
-	m_folderBrowse = new QPushButton("Browse...", this);
-	m_folderBrowse->setToolTip("Select the installation folder which contains the executable file.");
-
-	auto* folderRow = new QHBoxLayout;
-	folderRow->addWidget(m_folderEdit, 1);
-	folderRow->addWidget(m_folderBrowse);
-
-	m_exeEdit = new QLineEdit(this);
-	m_exeBrowse = new QPushButton("Browse...", this);
+	m_exeEdit = new QLineEdit;
+	m_exeBrowse = new QPushButton("Browse...");
 
 	auto* exeRow = new QHBoxLayout;
 	exeRow->addWidget(m_exeEdit, 1);
 	exeRow->addWidget(m_exeBrowse);
 
-	m_gameCombo = new QComboBox(this);
+	m_gameCombo = new QComboBox;
 	m_gameCombo->addItem("(unknown)", QString());
 
-	m_platformCombo = new QComboBox(this);
+	m_platformCombo = new QComboBox;
 	m_platformCombo->addItem("(unknown)", QString());
 
-	m_snapshotCombo = new QComboBox(this);
-	m_snapshotCombo->addItem("No snapshot", QString());
+	m_vendorCombo = new QComboBox;
+	m_vendorCombo->addItem("No vendor", QString());
 
-	m_statusLabel = new QLabel("Pick a game folder to begin.", this);
+	m_statusLabel = new QLabel("Pick a game folder to begin.");
 	m_statusLabel->setWordWrap(true);
 
-	m_buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
-	m_buttons->button(QDialogButtonBox::Ok)->setEnabled(false);
+	m_buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+	m_buttons->button(QDialogButtonBox::Ok)->setEnabled(false); // This must be controlled by checking for valid game paths, exes and snapshots.
 
 	auto* form = new QFormLayout;
-	form->addRow("Install folder:", folderRow);
+	
 	form->addRow("Executable:", exeRow);
 	form->addRow(tr("Game:"), m_gameCombo);
 	form->addRow(tr("Platform:"), m_platformCombo);
-	form->addRow(tr("Snapshot:"), m_snapshotCombo);
+	form->addRow(tr("Vendor:"), m_vendorCombo);
 
-	auto* root = new QVBoxLayout(this);
+	auto* root = new QVBoxLayout;
 	root->addLayout(form);
 	root->addWidget(m_statusLabel, 1);
 	root->addWidget(m_buttons);
 
+	this->setLayout(root);
+
 	// Signals
-	connect(m_folderBrowse, &QPushButton::clicked, this, &SelectGameDialog::browseForFolder);
 	connect(m_exeBrowse, &QPushButton::clicked, this, &SelectGameDialog::browseForExecutable);
-	connect(m_folderEdit, &QLineEdit::textChanged, this, &SelectGameDialog::onFolderChanged);
 	connect(m_exeEdit, &QLineEdit::textChanged, this, &SelectGameDialog::onExecutableChanged);
 	connect(m_buttons, &QDialogButtonBox::accepted, this, &SelectGameDialog::onAccept);
 	connect(m_buttons, &QDialogButtonBox::rejected, this, &SelectGameDialog::reject);
 	connect(m_gameCombo, &QComboBox::currentIndexChanged, this, &SelectGameDialog::updateAcceptState);
 	connect(m_platformCombo, &QComboBox::currentIndexChanged, this, &SelectGameDialog::updateAcceptState);
-	connect(m_buildCombo, &QComboBox::currentTextChanged, this, &SelectGameDialog::updateAcceptState);
+	connect(m_vendorCombo, &QComboBox::currentTextChanged, this, &SelectGameDialog::updateAcceptState);
+
+	auto& s = AppSettings::Get();
+
+	m_exeEdit->setText(s.GetExecutablePath());
+	m_exeEdit->setToolTip(s.GetExecutablePath());
+
+	if (auto* lbl = qobject_cast<QLabel*>(form->labelForField(exeRow)))
+		lbl->setToolTip(tr("Select the game's executable file."));
 
 	updateAcceptState();
 }
 
-void SelectGameDialog::browseForFolder()
-{
-	const QString start = m_folderEdit->text().isEmpty()
-		? QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
-		: m_folderEdit->text();
-
-	const QString dir = QFileDialog::getExistingDirectory(
-		this, "Select game install folder", start,
-		QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
-
-	if (!dir.isEmpty())
-		m_folderEdit->setText(QDir::toNativeSeparators(dir));
-}
-
 void SelectGameDialog::browseForExecutable()
 {
-	const QString start = m_folderEdit->text().isEmpty()
+	const QString start = m_exeEdit->text().isEmpty()
 		? QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
-		: m_folderEdit->text();
+		: m_exeEdit->text();
 
 	const QString exe = QFileDialog::getOpenFileName(
 		this, "Select game executable", start,
 		"Executables (*.exe);;All files (*)");
 
-	if (!exe.isEmpty())
+	if (!exe.isEmpty()) {
 		m_exeEdit->setText(QDir::toNativeSeparators(exe));
+		m_exeEdit->setToolTip(QDir::toNativeSeparators(exe));
+	}
+	
 }
 
 void SelectGameDialog::onFolderChanged(const QString& path)
@@ -134,10 +124,13 @@ void SelectGameDialog::refreshSnapshots(const QString& folder)
 
 void SelectGameDialog::updateAcceptState()
 {
-
+	
 }
 
 void SelectGameDialog::onAccept()
 {
+	auto& s = AppSettings::Get();
+	s.SetExecutablePath(m_exeBrowse->text());
+
 	accept();
 }

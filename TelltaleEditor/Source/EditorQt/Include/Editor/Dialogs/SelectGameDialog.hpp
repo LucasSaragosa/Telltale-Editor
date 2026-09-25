@@ -16,7 +16,6 @@ public:
 
 
 private slots:
-	void browseForFolder();
 	void browseForExecutable();
 	void onFolderChanged(const QString& path);
 	void onExecutableChanged(const QString& path);
@@ -31,11 +30,10 @@ private:
 	QPushButton* m_folderBrowse = nullptr;
 	QLineEdit* m_exeEdit = nullptr;
 	QPushButton* m_exeBrowse = nullptr;
-	QComboBox* m_snapshotCombo = nullptr;
 	QLabel* m_statusLabel = nullptr;
 	QDialogButtonBox* m_buttons = nullptr;
 
 	QComboBox* m_gameCombo = nullptr;
-	QComboBox* m_buildCombo = nullptr;
 	QComboBox* m_platformCombo = nullptr;
+	QComboBox* m_vendorCombo = nullptr;
 };

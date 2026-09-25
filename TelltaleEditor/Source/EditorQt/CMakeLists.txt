@@ -7,7 +7,7 @@ file(GLOB_RECURSE EDITORQT_RESOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DI
 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${EDITORQT_HEADERS} ${EDITORQT_SOURCES} ${EDITORQT_INLINES} ${EDITORQT_RESOURCES})
 
-find_package(Qt6 QUIET COMPONENTS Core Gui Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
 
 if(Qt6_FOUND)
     message(STATUS "Found Qt6 - using installation")
@@ -15,15 +15,20 @@ else()
     message(FATAL_ERROR "No Qt6 found on your system. Please see the README and install it first or build from source and pass it to CMake")
 endif()
 
-qt_standard_project_setup()
-
 set(CMAKE_AUTORCC ON)
+
+qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES it)
 
 qt_add_executable(${TARGET_NAME} 
     ${EDITORQT_HEADERS} 
     ${EDITORQT_SOURCES} 
     ${EDITORQT_INLINES}
     ${EDITORQT_RESOURCES}
+)
+
+qt_add_translations(${TARGET_NAME}
+    TS_FILE_BASE "TelltaleEditor"
+    TS_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Resources/Translations"
 )
 
 target_link_libraries(${TARGET_NAME} PRIVATE
@@ -69,6 +74,13 @@ if (WIN32)
                 "$<TARGET_FILE:${TARGET_NAME}>"
                 --no-translations --release
         COMMENT "Deploying Qt dependencies..."
+    )
+	
+	get_target_property(QT_CORE_LOCATION Qt6::Core LOCATION)
+    get_filename_component(QT_BIN_DIR "${QT_CORE_LOCATION}" DIRECTORY)
+
+    set_target_properties(${TARGET_NAME} PROPERTIES
+        VS_DEBUGGER_ENVIRONMENT "PATH=${QT_BIN_DIR};%PATH%"
     )
 
 elseif (APPLE)
