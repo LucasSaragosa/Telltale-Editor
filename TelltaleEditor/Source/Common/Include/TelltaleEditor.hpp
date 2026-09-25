@@ -185,6 +185,11 @@ public:
     {
         return _ModdingContext->LoadLibraryStringResource(name);
     }
+
+    inline ToolContext* GetModdingContext()
+    {
+        return _ModdingContext;
+    }
     
 private:
     

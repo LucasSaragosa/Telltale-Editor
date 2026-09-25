@@ -57,6 +57,20 @@ void MainWindow::setupMenus()
 	mainMenu->addMenu("Rules");
 	mainMenu->addMenu("Style");
 	mainMenu->addMenu("Vfx");
+
+
+	/*GameSnapshot snapshot{};
+	CreateEditorContext(snapshot);
+	Ptr<ResourceRegistry> _Registry = _Context->CreateResourceRegistry(true);
+	DataStreamRef ds = _Context->LoadLibraryResource("Resources/Textures/Chore.png");
+	U8* temp = TTE_ALLOC(ds->GetSize(), MEMORY_TAG_TEMPORARY);
+	ds->Read(temp, 100);*/
+
+	// Meta::GetInternalState,
+
+	TTArchive arc{ Meta::GetInternalState().GetActiveGame().MasterArchiveVersion };
+	
+
 }
 
 void MainWindow::setupToolBar()

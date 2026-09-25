@@ -1,5 +1,7 @@
 #pragma once
 
+#include <TelltaleEditor.hpp>
+
 #include <QMainWindow>
 #include <QMenuBar>
 #include <QToolBar>
@@ -27,4 +29,7 @@ private:
 	QPushButton* m_debugButton;
 	QLabel* m_titleLabel;
 	QPushButton* m_choicesButton;
+
+	TelltaleEditor* _Context = nullptr;
+
 };

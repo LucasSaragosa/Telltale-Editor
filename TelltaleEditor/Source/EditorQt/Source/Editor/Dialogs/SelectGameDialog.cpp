@@ -132,5 +132,7 @@ void SelectGameDialog::onAccept()
 	auto& s = AppSettings::Get();
 	s.SetExecutablePath(m_exeBrowse->text());
 
+
+
 	accept();
 }
