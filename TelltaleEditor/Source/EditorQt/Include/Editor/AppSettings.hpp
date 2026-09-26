@@ -23,6 +23,9 @@ public:
     QString GetSelectedPlatform() const;
     void    SetSelectedPlatform(const QString& p);
 
+    QString GetSelectedVendor() const;
+    void    SetSelectedVendor(const QString& v);
+
     // ---- Recent projects ----
     QStringList GetRecentProjects() const;
     void        AddRecentProject(const QString& path);
@@ -38,6 +41,8 @@ public:
     QVariant Get(const QString& key, const QVariant& def) const;
     void     Set(const QString& key, const QVariant& value);
     void     Sync();
+
+    void ClearGameSelection();
 
 private:
     AppSettings();

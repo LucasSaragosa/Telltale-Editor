@@ -42,6 +42,14 @@ void MainWindow::setupMenus()
 		SelectGameDialog dlg(this);
 		if (dlg.exec() != QDialog::Accepted)
 			return;
+
+		const GameSnapshot& snapshot = dlg.GetSnapshot();
+
+		CreateEditorContext(snapshot);
+
+		setWindowTitle(QString("Telltale Editor v0.0.1a — %1 (%2)")
+			.arg(QString::fromStdString(snapshot.ID),
+				QString::fromStdString(snapshot.Platform)));
 		});
 
 	mainMenu->addMenu("File");
@@ -59,16 +67,17 @@ void MainWindow::setupMenus()
 	mainMenu->addMenu("Vfx");
 
 
-	/*GameSnapshot snapshot{};
-	CreateEditorContext(snapshot);
-	Ptr<ResourceRegistry> _Registry = _Context->CreateResourceRegistry(true);
-	DataStreamRef ds = _Context->LoadLibraryResource("Resources/Textures/Chore.png");
-	U8* temp = TTE_ALLOC(ds->GetSize(), MEMORY_TAG_TEMPORARY);
-	ds->Read(temp, 100);*/
-
-	// Meta::GetInternalState,
-
-	TTArchive arc{ Meta::GetInternalState().GetActiveGame().MasterArchiveVersion };
+	GameSnapshot snapshot{};
+	
+	//CreateEditorContext(snapshot);
+	//Ptr<ResourceRegistry> _Registry = _Context->CreateResourceRegistry(true);
+	//DataStreamRef ds = _Context->LoadLibraryResource("Resources/Textures/Chore.png");
+	//U8* temp = TTE_ALLOC(ds->GetSize(), MEMORY_TAG_TEMPORARY);
+	//ds->Read(temp, 100);
+	//
+	//// Meta::GetInternalState,
+	//	Meta::GetInternalState().Games
+	//TTArchive arc{ Meta::GetInternalState().GetActiveGame().MasterArchiveVersion };
 	
 
 }

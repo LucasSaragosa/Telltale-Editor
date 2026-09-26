@@ -11,6 +11,7 @@ namespace Keys {
     static constexpr auto ExecutablePath = "game/executable";
     static constexpr auto GameId = "game/id";
     static constexpr auto Platform = "game/platform";
+    static constexpr auto Vendor = "game/vendor";
 
     static constexpr auto RecentProjects = "projects/recent";
 
@@ -92,6 +93,16 @@ void AppSettings::SetSelectedPlatform(const QString& p)
     m_impl->settings.setValue(Keys::Platform, p);
 }
 
+QString AppSettings::GetSelectedVendor() const
+{
+    return m_impl->settings.value(Keys::Vendor).toString();
+}
+
+void AppSettings::SetSelectedVendor(const QString& v)
+{
+    m_impl->settings.setValue(Keys::Vendor, v);
+}
+
 QStringList AppSettings::GetRecentProjects() const
 {
     return m_impl->settings.value(Keys::RecentProjects).toStringList();
@@ -145,4 +156,13 @@ void AppSettings::Set(const QString& key, const QVariant& value)
 void AppSettings::Sync()
 {
     m_impl->settings.sync();
+}
+
+void AppSettings::ClearGameSelection()
+{
+    m_impl->settings.remove(Keys::GameFolder);
+    m_impl->settings.remove(Keys::ExecutablePath);
+    m_impl->settings.remove(Keys::GameId);
+    m_impl->settings.remove(Keys::Platform);
+    m_impl->settings.remove(Keys::Vendor);
 }
