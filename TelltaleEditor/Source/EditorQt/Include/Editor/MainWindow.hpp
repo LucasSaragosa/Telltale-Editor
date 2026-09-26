@@ -3,33 +3,37 @@
 #include <TelltaleEditor.hpp>
 
 #include <QMainWindow>
-#include <QMenuBar>
-#include <QToolBar>
-#include <QStatusBar>
 #include <QLabel>
 #include <QPushButton>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QWidget>
+#include <QToolBar>
+
+extern Ptr<ResourceRegistry> GetEditorResourceRegistry();
 
 class MainWindow : public QMainWindow {
 	Q_OBJECT
 
 public:
+
 	MainWindow(QWidget* parent = nullptr);
 	~MainWindow();
 
+	inline Ptr<ResourceRegistry> GetResourceRegistry()
+	{
+		return _Registry;
+	}
+
 private:
-	void setupMenus();
-	void setupToolBar();
-	void setupCentralWidget();
+	void _SetupMenus();
+	void _SetupToolBar();
+	void _SetupCentralWidget();
 
-	QWidget* m_renderSurface;
+	QWidget* _RenderSurface;
 
-	QPushButton* m_debugButton;
-	QLabel* m_titleLabel;
-	QPushButton* m_choicesButton;
+	QPushButton* _DbgButton;
+	QLabel* _TitleLabel;
+	QPushButton* _ChoicesButton;
 
 	TelltaleEditor* _Context = nullptr;
+	Ptr<ResourceRegistry> _Registry;
 
 };

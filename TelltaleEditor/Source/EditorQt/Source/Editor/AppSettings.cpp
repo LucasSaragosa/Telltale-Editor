@@ -6,7 +6,8 @@
 #include <QDir>
 
 // ---------- Keys (centralized) ----------
-namespace Keys {
+namespace Keys 
+{
     static constexpr auto GameFolder = "game/folder";
     static constexpr auto ExecutablePath = "game/executable";
     static constexpr auto GameId = "game/id";
@@ -26,21 +27,12 @@ public:
     QSettings settings;
 
     Impl()
-        : settings(
-            // Organization + app name → drives where files/registry keys land
-            QSettings::IniFormat,                       // force INI for portability
-            QSettings::UserScope,
-            "TelltaleEditor",                           // org
-            "TelltaleEditor")                           // app
+        : settings(QSettings::IniFormat, QSettings::UserScope, "TelltaleEditor", "TelltaleEditor")
     {
-        // Optional: store next to the executable instead of in AppData
-        // settings.setPath(QSettings::IniFormat, QSettings::UserScope,
-        //                  QCoreApplication::applicationDirPath());
         settings.setFallbacksEnabled(false);
     }
 };
 
-// ---------- Singleton ----------
 AppSettings& AppSettings::Get()
 {
     static AppSettings instance;
@@ -48,64 +40,63 @@ AppSettings& AppSettings::Get()
 }
 
 AppSettings::AppSettings()
-    : m_impl(new Impl())
+    : _MyImpl(new Impl())
 {
 }
 
-// ---------- Typed getters/setters ----------
 QString AppSettings::GetGameFolder() const
 {
-    return m_impl->settings.value(Keys::GameFolder).toString();
+    return _MyImpl->settings.value(Keys::GameFolder).toString();
 }
 
 void AppSettings::SetGameFolder(const QString& path)
 {
-    m_impl->settings.setValue(Keys::GameFolder, path);
+    _MyImpl->settings.setValue(Keys::GameFolder, path);
 }
 
 QString AppSettings::GetExecutablePath() const
 {
-    return m_impl->settings.value(Keys::ExecutablePath).toString();
+    return _MyImpl->settings.value(Keys::ExecutablePath).toString();
 }
 
 void AppSettings::SetExecutablePath(const QString& path)
 {
-    m_impl->settings.setValue(Keys::ExecutablePath, path);
+    _MyImpl->settings.setValue(Keys::ExecutablePath, path);
 }
 
 QString AppSettings::GetSelectedGameId() const
 {
-    return m_impl->settings.value(Keys::GameId).toString();
+    return _MyImpl->settings.value(Keys::GameId).toString();
 }
 
 void AppSettings::SetSelectedGameId(const QString& id)
 {
-    m_impl->settings.setValue(Keys::GameId, id);
+    _MyImpl->settings.setValue(Keys::GameId, id);
 }
 
 QString AppSettings::GetSelectedPlatform() const
 {
-    return m_impl->settings.value(Keys::Platform).toString();
+    return _MyImpl->settings.value(Keys::Platform).toString();
 }
 
 void AppSettings::SetSelectedPlatform(const QString& p)
 {
-    m_impl->settings.setValue(Keys::Platform, p);
+    _MyImpl->settings.setValue(Keys::Platform, p);
 }
 
 QString AppSettings::GetSelectedVendor() const
 {
-    return m_impl->settings.value(Keys::Vendor).toString();
+    return _MyImpl->settings.value(Keys::Vendor).toString();
 }
 
 void AppSettings::SetSelectedVendor(const QString& v)
 {
-    m_impl->settings.setValue(Keys::Vendor, v);
+    _MyImpl->settings.setValue(Keys::Vendor, v);
 }
 
 QStringList AppSettings::GetRecentProjects() const
 {
-    return m_impl->settings.value(Keys::RecentProjects).toStringList();
+    return _MyImpl->settings.value(Keys::RecentProjects).toStringList();
 }
 
 void AppSettings::AddRecentProject(const QString& path)
@@ -113,56 +104,57 @@ void AppSettings::AddRecentProject(const QString& path)
     auto list = GetRecentProjects();
     list.removeAll(path);
     list.prepend(path);
-    while (list.size() > 10) list.removeLast();     // keep it tidy
-    m_impl->settings.setValue(Keys::RecentProjects, list);
+    while (list.size() > 10) 
+        list.removeLast();     // keep it tidy
+    _MyImpl->settings.setValue(Keys::RecentProjects, list);
 }
 
 void AppSettings::ClearRecentProjects()
 {
-    m_impl->settings.remove(Keys::RecentProjects);
+    _MyImpl->settings.remove(Keys::RecentProjects);
 }
 
 QByteArray AppSettings::GetMainWindowGeometry() const
 {
-    return m_impl->settings.value(Keys::MainGeometry).toByteArray();
+    return _MyImpl->settings.value(Keys::MainGeometry).toByteArray();
 }
 
 void AppSettings::SetMainWindowGeometry(const QByteArray& geo)
 {
-    m_impl->settings.setValue(Keys::MainGeometry, geo);
+    _MyImpl->settings.setValue(Keys::MainGeometry, geo);
 }
 
 QByteArray AppSettings::GetMainWindowState() const
 {
-    return m_impl->settings.value(Keys::MainState).toByteArray();
+    return _MyImpl->settings.value(Keys::MainState).toByteArray();
 }
 
 void AppSettings::SetMainWindowState(const QByteArray& state)
 {
-    m_impl->settings.setValue(Keys::MainState, state);
+    _MyImpl->settings.setValue(Keys::MainState, state);
 }
 
 // ---------- Generic ----------
 QVariant AppSettings::Get(const QString& key, const QVariant& def) const
 {
-    return m_impl->settings.value(key, def);
+    return _MyImpl->settings.value(key, def);
 }
 
 void AppSettings::Set(const QString& key, const QVariant& value)
 {
-    m_impl->settings.setValue(key, value);
+    _MyImpl->settings.setValue(key, value);
 }
 
 void AppSettings::Sync()
 {
-    m_impl->settings.sync();
+    _MyImpl->settings.sync();
 }
 
 void AppSettings::ClearGameSelection()
 {
-    m_impl->settings.remove(Keys::GameFolder);
-    m_impl->settings.remove(Keys::ExecutablePath);
-    m_impl->settings.remove(Keys::GameId);
-    m_impl->settings.remove(Keys::Platform);
-    m_impl->settings.remove(Keys::Vendor);
+    _MyImpl->settings.remove(Keys::GameFolder);
+    _MyImpl->settings.remove(Keys::ExecutablePath);
+    _MyImpl->settings.remove(Keys::GameId);
+    _MyImpl->settings.remove(Keys::Platform);
+    _MyImpl->settings.remove(Keys::Vendor);
 }

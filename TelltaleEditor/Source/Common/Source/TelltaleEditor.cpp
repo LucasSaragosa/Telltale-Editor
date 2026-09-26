@@ -82,6 +82,12 @@ TelltaleEditor::TelltaleEditor(GameSnapshot s, Callbacks&& pre, Callbacks&& post
     LuaScriptCollectionBitSet toRegister = LuaScriptCollectionBitSet::All();
     toRegister.Set(LuaScriptCollection::COMMON_MAIN_ENGINE, false); // dont need rest yet (massive amount of API here), only in Scene runtime.
 
+    // for non editor builds
+    if(luaEditorCollect == nullptr)
+    {
+        toRegister.Set(LuaScriptCollection::EDITOR_ONLY_API, false);
+    }
+
     _ModdingContext = CreateToolContext(GetLuaRegistry(toRegister, false), GetLuaRegistry(toRegister, true));
 
     if(s.ID.length() > 0)

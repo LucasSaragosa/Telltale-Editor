@@ -10,35 +10,39 @@ class QPushButton;
 class QLabel;
 class QDialogButtonBox;
 
-class SelectGameDialog : public QDialog {
+class SelectGameDialog : public QDialog 
+{
     Q_OBJECT
-
 public:
+
     explicit SelectGameDialog(QWidget* parent = nullptr);
     ~SelectGameDialog() override;
 
-    const GameSnapshot& GetSnapshot() const { return *m_gameSnapshot; }
+    const GameSnapshot& GetSnapshot() const { return *_ActiveSnapshot; }
 
 private slots:
-    void browseForExecutable();
-    void onExecutableChanged(const QString& path);
-    void onGameChanged(int index);
-    void onAccept();
 
-    void populateCombos();
-    void detectGameFromPath(const QString& exePath);
-    void updateAcceptState();
-    bool validateInputs(QString* outError) const;
-    void restoreFromSettings();
+    void _BrowseForExecutable();
+    void _OnChangeExecutable(const QString& path);
+    void _OnGameChange(int index);
+    void _OnAccept();
 
-    QLineEdit* m_exeEdit = nullptr;
-    QPushButton* m_exeBrowse = nullptr;
-    QLabel* m_statusLabel = nullptr;
-    QDialogButtonBox* m_buttons = nullptr;
+private:
 
-    QComboBox* m_gameCombo = nullptr;
-    QComboBox* m_platformCombo = nullptr;
-    QComboBox* m_vendorCombo = nullptr;
+    void _PopulateGameCombos();
+    void _DetectGameFromPath(const QString& exePath);
+    void _UpdateAcceptState();
+    bool _ValidateInputs(QString* outError) const;
+    void _RestoreFromSettings();
 
-    GameSnapshot* m_gameSnapshot = nullptr;
+    QLineEdit* _ExeEditor = nullptr;
+    QPushButton* _ExeBrowse = nullptr;
+    QLabel* _StatusLabel = nullptr;
+    QDialogButtonBox* _Buttons = nullptr;
+
+    QComboBox* _GameComboBox = nullptr;
+    QComboBox* _PlatformCombo = nullptr;
+    QComboBox* _VendorCombo = nullptr;
+
+    GameSnapshot* _ActiveSnapshot = nullptr;
 };

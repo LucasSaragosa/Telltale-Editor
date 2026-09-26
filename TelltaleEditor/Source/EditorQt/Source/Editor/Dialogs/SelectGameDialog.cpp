@@ -1,8 +1,7 @@
 #include <Editor/Dialogs/SelectGameDialog.hpp>
 #include <Editor/AppSettings.hpp>
 
-// Engine / meta headers — adjust paths to your project.
-#include <Meta/Meta.hpp>          // Meta::GetInternalState()
+#include <Meta/Meta.hpp>
 
 #include <QFile>
 #include <QDirIterator>
@@ -23,90 +22,90 @@
 
 SelectGameDialog::SelectGameDialog(QWidget* parent)
     : QDialog(parent)
-    , m_gameSnapshot(new GameSnapshot{})
+    , _ActiveSnapshot(new GameSnapshot{})
 {
     setWindowTitle(tr("Select Game"));
     resize(640, 320);
 
-    m_exeEdit = new QLineEdit;
-    m_exeBrowse = new QPushButton(tr("Browse..."));
+    _ExeEditor = new QLineEdit;
+    _ExeBrowse = new QPushButton(tr("Browse..."));
 
     auto* exeRow = new QHBoxLayout;
-    exeRow->addWidget(m_exeEdit, 1);
-    exeRow->addWidget(m_exeBrowse);
+    exeRow->addWidget(_ExeEditor, 1);
+    exeRow->addWidget(_ExeBrowse);
 
-    m_gameCombo = new QComboBox;
-    m_platformCombo = new QComboBox;
-    m_vendorCombo = new QComboBox;
+    _GameComboBox = new QComboBox;
+    _PlatformCombo = new QComboBox;
+    _VendorCombo = new QComboBox;
 
-    m_statusLabel = new QLabel(tr("Pick a game executable to begin."));
-    m_statusLabel->setWordWrap(true);
+    _StatusLabel = new QLabel(tr("Pick a game executable to begin."));
+    _StatusLabel->setWordWrap(true);
 
-    m_buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-    m_buttons->button(QDialogButtonBox::Ok)->setEnabled(false);
+    _Buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    _Buttons->button(QDialogButtonBox::Ok)->setEnabled(false);
 
     auto* form = new QFormLayout;
     form->addRow(tr("Executable:"), exeRow);
-    form->addRow(tr("Game:"), m_gameCombo);
-    form->addRow(tr("Platform:"), m_platformCombo);
-    form->addRow(tr("Vendor:"), m_vendorCombo);
+    form->addRow(tr("Game:"), _GameComboBox);
+    form->addRow(tr("Platform:"), _PlatformCombo);
+    form->addRow(tr("Vendor:"), _VendorCombo);
 
     auto* root = new QVBoxLayout;
     root->addLayout(form);
-    root->addWidget(m_statusLabel, 1);
-    root->addWidget(m_buttons);
+    root->addWidget(_StatusLabel, 1);
+    root->addWidget(_Buttons);
     setLayout(root);
 
     // Populate combos from the engine's registered games.
-    populateCombos();
+    _PopulateGameCombos();
 
     // Restore last-used executable.
     auto& s = AppSettings::Get();
     const QString lastExe = s.GetExecutablePath();
     if (!lastExe.isEmpty()) {
-        m_exeEdit->setText(QDir::toNativeSeparators(lastExe));
-        m_exeEdit->setToolTip(QDir::toNativeSeparators(lastExe));
+        _ExeEditor->setText(QDir::toNativeSeparators(lastExe));
+        _ExeEditor->setToolTip(QDir::toNativeSeparators(lastExe));
 
         // Try to auto-detect game/platform/vendor from the restored path.
-        detectGameFromPath(lastExe);
+        _DetectGameFromPath(lastExe);
     }
 
     // Connections
-    connect(m_exeBrowse, &QPushButton::clicked,
-        this, &SelectGameDialog::browseForExecutable);
-    connect(m_exeEdit, &QLineEdit::textChanged,
-        this, &SelectGameDialog::onExecutableChanged);
-    connect(m_gameCombo, &QComboBox::currentIndexChanged,
-        this, &SelectGameDialog::onGameChanged);
-    connect(m_platformCombo, &QComboBox::currentIndexChanged,
-        this, &SelectGameDialog::updateAcceptState);
-    connect(m_vendorCombo, &QComboBox::currentTextChanged,
-        this, &SelectGameDialog::updateAcceptState);
-    connect(m_buttons, &QDialogButtonBox::accepted,
-        this, &SelectGameDialog::onAccept);
-    connect(m_buttons, &QDialogButtonBox::rejected,
+    connect(_ExeBrowse, &QPushButton::clicked,
+        this, &SelectGameDialog::_BrowseForExecutable);
+    connect(_ExeEditor, &QLineEdit::textChanged,
+        this, &SelectGameDialog::_OnChangeExecutable);
+    connect(_GameComboBox, &QComboBox::currentIndexChanged,
+        this, &SelectGameDialog::_OnGameChange);
+    connect(_PlatformCombo, &QComboBox::currentIndexChanged,
+        this, &SelectGameDialog::_UpdateAcceptState);
+    connect(_VendorCombo, &QComboBox::currentTextChanged,
+        this, &SelectGameDialog::_UpdateAcceptState);
+    connect(_Buttons, &QDialogButtonBox::accepted,
+        this, &SelectGameDialog::_OnAccept);
+    connect(_Buttons, &QDialogButtonBox::rejected,
         this, &SelectGameDialog::reject);
 
-    restoreFromSettings();
+    _RestoreFromSettings();
 
-    updateAcceptState();
+    _UpdateAcceptState();
 }
 
 SelectGameDialog::~SelectGameDialog()
 {
-    delete m_gameSnapshot;
+    delete _ActiveSnapshot;
 }
 
 // ---------------------------------------------------------------------------
 // Populate from Meta::GetInternalState().Games
 // ---------------------------------------------------------------------------
-void SelectGameDialog::populateCombos()
+void SelectGameDialog::_PopulateGameCombos()
 {
-    m_gameCombo->clear();
-    m_platformCombo->clear();
-    m_vendorCombo->clear();
+    _GameComboBox->clear();
+    _PlatformCombo->clear();
+    _VendorCombo->clear();
 
-    m_gameCombo->addItem(tr("(select a game)"), QString());
+    _GameComboBox->addItem(tr("(select a game)"), QString());
 
     auto& games = Meta::GetInternalState().Games;
 
@@ -114,29 +113,29 @@ void SelectGameDialog::populateCombos()
         const QString id = QString::fromStdString(g.ID);
         if (id.isEmpty())
             continue;
-        m_gameCombo->addItem(id, id);
+        _GameComboBox->addItem(id, id);
     }
 
     // Placeholder rows until a game is chosen.
-    m_platformCombo->addItem(tr("(select a game first)"), QString());
-    m_vendorCombo->addItem(tr("(none)"), QString());
+    _PlatformCombo->addItem(tr("(select a game first)"), QString());
+    _VendorCombo->addItem(tr("(none)"), QString());
 }
 
-void SelectGameDialog::onGameChanged(int /*index*/)
+void SelectGameDialog::_OnGameChange(int /*index*/)
 {
-    const QString gameId = m_gameCombo->currentData().toString();
+    const QString gameId = _GameComboBox->currentData().toString();
 
-    m_platformCombo->blockSignals(true);
-    m_vendorCombo->blockSignals(true);
-    m_platformCombo->clear();
-    m_vendorCombo->clear();
+    _PlatformCombo->blockSignals(true);
+    _VendorCombo->blockSignals(true);
+    _PlatformCombo->clear();
+    _VendorCombo->clear();
 
     if (gameId.isEmpty()) {
-        m_platformCombo->addItem(tr("(select a game first)"), QString());
-        m_vendorCombo->addItem(tr("(none)"), QString());
-        m_platformCombo->blockSignals(false);
-        m_vendorCombo->blockSignals(false);
-        updateAcceptState();
+        _PlatformCombo->addItem(tr("(select a game first)"), QString());
+        _VendorCombo->addItem(tr("(none)"), QString());
+        _PlatformCombo->blockSignals(false);
+        _VendorCombo->blockSignals(false);
+        _UpdateAcceptState();
         return;
     }
 
@@ -151,11 +150,11 @@ void SelectGameDialog::onGameChanged(int /*index*/)
     }
 
     if (!reg) {
-        m_platformCombo->addItem(tr("(unknown)"), QString());
-        m_vendorCombo->addItem(tr("(none)"), QString());
-        m_platformCombo->blockSignals(false);
-        m_vendorCombo->blockSignals(false);
-        updateAcceptState();
+        _PlatformCombo->addItem(tr("(unknown)"), QString());
+        _VendorCombo->addItem(tr("(none)"), QString());
+        _PlatformCombo->blockSignals(false);
+        _VendorCombo->blockSignals(false);
+        _UpdateAcceptState();
         return;
     }
 
@@ -163,36 +162,36 @@ void SelectGameDialog::onGameChanged(int /*index*/)
     for (const auto& p : reg->ValidPlatforms) {
         const QString platform = QString::fromStdString(p);
         if (!platform.isEmpty())
-            m_platformCombo->addItem(platform, platform);
+            _PlatformCombo->addItem(platform, platform);
     }
-    if (m_platformCombo->count() == 0)
-        m_platformCombo->addItem(tr("(unknown)"), QString());
+    if (_PlatformCombo->count() == 0)
+        _PlatformCombo->addItem(tr("(unknown)"), QString());
 
     // --- Vendors ---
     // Always allow the empty/none entry.
-    m_vendorCombo->addItem(tr("(none)"), QString());
+    _VendorCombo->addItem(tr("(none)"), QString());
 
     for (const auto& v : reg->ValidVendors) {
         const QString vendor = QString::fromStdString(v);
         if (!vendor.isEmpty())
-            m_vendorCombo->addItem(vendor, vendor);
+            _VendorCombo->addItem(vendor, vendor);
     }
 
     // If ValidVendors is empty, vendor is irrelevant — disable the combo.
-    m_vendorCombo->setEnabled(!reg->ValidVendors.empty());
-    m_vendorCombo->setCurrentIndex(0);
+    _VendorCombo->setEnabled(!reg->ValidVendors.empty());
+    _VendorCombo->setCurrentIndex(0);
 
-    m_platformCombo->blockSignals(false);
-    m_vendorCombo->blockSignals(false);
+    _PlatformCombo->blockSignals(false);
+    _VendorCombo->blockSignals(false);
 
-    updateAcceptState();
+    _UpdateAcceptState();
 }
 
-void SelectGameDialog::browseForExecutable()
+void SelectGameDialog::_BrowseForExecutable()
 {
-    const QString start = m_exeEdit->text().isEmpty()
+    const QString start = _ExeEditor->text().isEmpty()
         ? QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
-        : m_exeEdit->text();
+        : _ExeEditor->text();
 
     const QString exe = QFileDialog::getOpenFileName(
         this, tr("Select game executable"), start,
@@ -202,12 +201,12 @@ void SelectGameDialog::browseForExecutable()
         return;
 
     const QString native = QDir::toNativeSeparators(exe);
-    m_exeEdit->setText(native);
-    m_exeEdit->setToolTip(native);
-    detectGameFromPath(native);
+    _ExeEditor->setText(native);
+    _ExeEditor->setToolTip(native);
+    _DetectGameFromPath(native);
 }
 
-void SelectGameDialog::detectGameFromPath(const QString& exePath)
+void SelectGameDialog::_DetectGameFromPath(const QString& exePath)
 {
     if (exePath.isEmpty())
         return;
@@ -227,18 +226,18 @@ void SelectGameDialog::detectGameFromPath(const QString& exePath)
         break;
     }
 
-    updateAcceptState();
+    _UpdateAcceptState();
 }
 
-void SelectGameDialog::onExecutableChanged(const QString& path)
+void SelectGameDialog::_OnChangeExecutable(const QString& path)
 {
-    m_exeEdit->setToolTip(path);
-    updateAcceptState();
+    _ExeEditor->setToolTip(path);
+    _UpdateAcceptState();
 }
 
-bool SelectGameDialog::validateInputs(QString* outError) const
+bool SelectGameDialog::_ValidateInputs(QString* outError) const
 {
-    const QString exePath = m_exeEdit->text().trimmed();
+    const QString exePath = _ExeEditor->text().trimmed();
 
     if (exePath.isEmpty()) {
         if (outError) *outError = tr("Please select a game executable.");
@@ -251,12 +250,12 @@ bool SelectGameDialog::validateInputs(QString* outError) const
         return false;
     }
 
-    if (m_gameCombo->currentData().toString().isEmpty()) {
+    if (_GameComboBox->currentData().toString().isEmpty()) {
         if (outError) *outError = tr("Please select a game.");
         return false;
     }
 
-    if (m_platformCombo->currentData().toString().isEmpty()) {
+    if (_PlatformCombo->currentData().toString().isEmpty()) {
         if (outError) *outError = tr("Please select a platform.");
         return false;
     }
@@ -264,89 +263,94 @@ bool SelectGameDialog::validateInputs(QString* outError) const
     return true;
 }
 
-void SelectGameDialog::updateAcceptState()
+void SelectGameDialog::_UpdateAcceptState()
 {
     QString err;
-    const bool ok = validateInputs(&err);
+    const bool ok = _ValidateInputs(&err);
 
-    m_buttons->button(QDialogButtonBox::Ok)->setEnabled(ok);
+    _Buttons->button(QDialogButtonBox::Ok)->setEnabled(ok);
 
     if (ok) {
-        m_statusLabel->setText(tr("Ready. Click OK to open the game."));
+        _StatusLabel->setText(tr("Ready. Click OK to open the game."));
     }
     else {
-        m_statusLabel->setText(err);
+        _StatusLabel->setText(err);
     }
 }
 
-void SelectGameDialog::onAccept()
+void SelectGameDialog::_OnAccept()
 {
     QString err;
-    if (!validateInputs(&err)) {
+    if (!_ValidateInputs(&err)) {
         QMessageBox::warning(this, tr("Invalid Selection"), err);
         return;
     }
 
-    m_gameSnapshot->ID = m_gameCombo->currentData().toString().toStdString();
-    m_gameSnapshot->Platform = m_platformCombo->currentData().toString().toStdString();
-    m_gameSnapshot->Vendor = m_vendorCombo->currentData().toString().toStdString();
+    _ActiveSnapshot->ID = _GameComboBox->currentData().toString().toStdString();
+    _ActiveSnapshot->Platform = _PlatformCombo->currentData().toString().toStdString();
+    _ActiveSnapshot->Vendor = _VendorCombo->currentData().toString().toStdString();
 
     auto& s = AppSettings::Get();
-    s.SetExecutablePath(m_exeEdit->text());      
-    s.SetGameFolder(QFileInfo(m_exeEdit->text()).absolutePath());
-    s.SetSelectedGameId(QString::fromStdString(m_gameSnapshot->ID));
-    s.SetSelectedPlatform(QString::fromStdString(m_gameSnapshot->Platform));
+    s.SetExecutablePath(_ExeEditor->text());      
+    s.SetGameFolder(QFileInfo(_ExeEditor->text()).absolutePath());
+    s.SetSelectedGameId(QString::fromStdString(_ActiveSnapshot->ID));
+    s.SetSelectedPlatform(QString::fromStdString(_ActiveSnapshot->Platform));
     s.Sync();
 
     accept();
 }
 
-void SelectGameDialog::restoreFromSettings()
+void SelectGameDialog::_RestoreFromSettings()
 {
     auto& s = AppSettings::Get();
 
     // --- Executable ---
     const QString lastExe = s.GetExecutablePath();
-    if (!lastExe.isEmpty()) {
+    if (!lastExe.isEmpty()) 
+    {
         const QString native = QDir::toNativeSeparators(lastExe);
-        m_exeEdit->setText(native);
-        m_exeEdit->setToolTip(native);
+        _ExeEditor->setText(native);
+        _ExeEditor->setToolTip(native);
     }
 
     // --- Game ---
     // Select the saved game by data (the ID), not by index — indices
     // can shift if the registry changes between runs.
     const QString savedGame = s.GetSelectedGameId();
-    if (!savedGame.isEmpty()) {
-        const int idx = m_gameCombo->findData(savedGame);
-        if (idx >= 0) {
+    if (!savedGame.isEmpty()) 
+    {
+        const int idx = _GameComboBox->findData(savedGame);
+        if (idx >= 0) 
+        {
             // Setting the index fires onGameChanged(), which repopulates
             // platform + vendor for this game.
-            m_gameCombo->setCurrentIndex(idx);
+            _GameComboBox->setCurrentIndex(idx);
         }
     }
 
     // --- Platform ---
     const QString savedPlatform = s.GetSelectedPlatform();
-    if (!savedPlatform.isEmpty()) {
-        const int idx = m_platformCombo->findData(savedPlatform);
+    if (!savedPlatform.isEmpty()) 
+    {
+        const int idx = _PlatformCombo->findData(savedPlatform);
         if (idx >= 0)
-            m_platformCombo->setCurrentIndex(idx);
+            _PlatformCombo->setCurrentIndex(idx);
     }
 
     // --- Vendor ---
     const QString savedVendor = s.GetSelectedVendor();
-    if (!savedVendor.isEmpty()) {
-        const int idx = m_vendorCombo->findData(savedVendor);
+    if (!savedVendor.isEmpty()) 
+    {
+        const int idx = _VendorCombo->findData(savedVendor);
         if (idx >= 0)
-            m_vendorCombo->setCurrentIndex(idx);
+            _VendorCombo->setCurrentIndex(idx);
     }
     else {
         // Empty saved vendor == "(none)". Make sure that's selected.
-        m_vendorCombo->setCurrentIndex(0);
+        _VendorCombo->setCurrentIndex(0);
     }
 
     // If the exe was restored but no game was saved, try detection.
     if (savedGame.isEmpty() && !lastExe.isEmpty())
-        detectGameFromPath(lastExe);
+        _DetectGameFromPath(lastExe);
 }

@@ -47,14 +47,13 @@ I32 Application::_Run(const std::vector<CommandLine::TaskArgument>& args)
 
 	QApplication qtApp(argc, argv);
 
-	// 1. Load Qt's own translations (for standard dialogs, etc.)
 	QTranslator qtTranslator;
 	if (qtTranslator.load(QLocale(), "qtbase", "_",
 		QLibraryInfo::path(QLibraryInfo::TranslationsPath))) {
 		qtApp.installTranslator(&qtTranslator);
 	}
 
-	// 2. Load YOUR application's translations
+	// translations
 	QTranslator appTranslator;
 	if (appTranslator.load(QLocale(), "TelltaleEditor", "_", ":/i18n")) {
 		qtApp.installTranslator(&appTranslator);
@@ -62,8 +61,16 @@ I32 Application::_Run(const std::vector<CommandLine::TaskArgument>& args)
 
 	CreateEditorContext({}, {}, {});
 
+	// Run App
 	MainWindow window;
 	window.show();
+	I32 code = qtApp.exec();
 
-	return qtApp.exec();
+	FreeEditorContext();
+
+#ifdef DEBUG
+	Memory::DumpTrackedMemory(); // any memory leaks
+#endif
+
+	return code;
 }

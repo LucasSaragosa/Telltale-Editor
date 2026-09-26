@@ -7,6 +7,7 @@
 class AppSettings
 {
 public:
+
     // Singleton access
     static AppSettings& Get();
 
@@ -45,11 +46,12 @@ public:
     void ClearGameSelection();
 
 private:
+
     AppSettings();
     ~AppSettings() = default;
     AppSettings(const AppSettings&) = delete;
     AppSettings& operator=(const AppSettings&) = delete;
 
     class Impl;
-    Impl* m_impl;   // pimpl so QSettings header doesn't leak everywhere
+    Impl* _MyImpl;
 };
