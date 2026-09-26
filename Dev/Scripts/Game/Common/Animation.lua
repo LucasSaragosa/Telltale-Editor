@@ -11,6 +11,8 @@ function RegisterProceduralLookAts0(MetaVec3, animatedQuat, anm)
 
     local proc = NewClass("class Procedural_LookAt", 0)
     proc.Serialiser = "SerialiseProceduralLookAt0"
+    proc.Extension = "look"
+    proc.Normaliser = "NormaliseProceduralLookAt0"
     proc.Flags = kMetaClassIntrinsic -- none of this is in headers. also only animation is serialised?
     proc.Members[1] = NewMember("Baseclass_Animation", NewProxyClass("class Animation *", "Animation", anm, true))
     proc.Members[2] = NewMember("mHostNode", kMetaClassString)
@@ -20,6 +22,24 @@ function RegisterProceduralLookAts0(MetaVec3, animatedQuat, anm)
     MetaRegisterClass(proc)
 
     return proc, procval
+end
+
+function NormaliseProceduralLookAt0(i, state)
+    CommonProceduralSetTargets(state, MetaGetClassValue(MetaGetMember(i, "mHostNode")),
+        MetaGetClassValue(MetaGetMember(i, "mTargetAgent")), MetaGetClassValue(MetaGetMember(i, "mTargetNode")), 
+        MetaGetMember(i, "mTargetOffset"))
+    return true
+end
+
+-- Called by each game specialiser. This installs the prop keys needed for procedural look at chore entries
+function ProceduralLookAt_OnAttach(props, ver) -- ver 0 for now for lodest
+    PropertyCreate(props, "Target Agent", "class String", "")
+    -- important: the default look at, looks at the agents 'head' node
+    PropertyCreate(props, "Target Agent Node", "class String", "head")
+    -- similar, this is the actual node on the agent about to look, default their head lol
+    PropertyCreate(props, "Host Agent Node", "class String", "head")
+    -- target node offset
+    PropertyCreate(props, "Target Agent Node Offset", "class Vector3")
 end
 
 function RegisterCompressedVecAndQuats0()
@@ -85,6 +105,7 @@ function NormaliseAnimation0(instance, state)
     CommonAnimationSetName(state, dbgname)
     CommonAnimationSetLength(state, MetaGetClassValue(MetaGetMember(instance, "mLength")))
 
+    -- most of the flags are the same in all games, but we want to restrict use to the ones that game uses
     local function FlagsToAnimType(flags)
         local animType = kAnimationValueTypeSkeletonPose
         -- flags is 0 in idle anims and others. CHECK THIS! (additive??) obj_mailboxPossum_sk11_action_discoveredMailbox.anm
@@ -92,11 +113,15 @@ function NormaliseAnimation0(instance, state)
             animType = kAnimationValueTypeProperty -- only seen Render Axis Scale animated in this game
         elseif MetaFlagQuery(flags, 16) then
             animType = kAnimationValueTypeMover
+        elseif MetaFlagQuery(flags, 2) then
+            animType = kAnimationValueTypeTime
+        elseif MetaFlagQuery(flags, 4) then
+            animType = kAnimationValueTypeContribution
         else
             if MetaFlagQuery(flags, 512) then
                 flags = flags - 512 -- homogeneous flag
             end
-            TTE_Assert(flags == 0, "Animation value flags for BN100 " .. tostring(flags) .. " not supported")
+            TTE_Assert(flags == 0, "Animation value flags " .. tostring(flags) .. " not supported")
         end -- check this!
         return animType
     end

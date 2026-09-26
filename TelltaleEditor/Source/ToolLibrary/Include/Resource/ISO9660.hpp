@@ -226,5 +226,7 @@ private:
     std::vector<DirectoryRecord> _Records;
     
     DataStreamRef _CachedInput; // cached input stream from last serialise in for reading files
+
+    friend class RegistryDirectory_ISO9660;
     
 };

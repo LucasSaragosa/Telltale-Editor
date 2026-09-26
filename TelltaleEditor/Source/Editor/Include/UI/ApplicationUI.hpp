@@ -7,14 +7,14 @@
 #include <Core/Symbol.hpp>
 
 #include <UI/MenuBar.hpp>
-#include <UI/EditorUI.hpp>
+#include <UI/UIEditors.hpp>
 
 #include <unordered_map>
 #include <set>
 #include <map>
 #include <queue>
-
 #include <SDL3/SDL_surface.h>
+#include <imgui.h>
 
 #define WORKSPACE_KEY_LANG "Workspace - Language"
 
@@ -26,10 +26,28 @@ struct EditorUI;
 enum class ApplicationFlag
 {
     RUNNING = 1,
+    WANT_QUIT = 2,
+    WANT_SWITCH_PROJECT = 4,
+    CONSOLE_WINDOW_OPEN = 8,
+    MEMORY_WINDOW_OPEN = 16,
 };
 
-void ImGui_ImplSDLGPU3_RenderDrawData(ImDrawData* draw_data, SDL_GPUCommandBuffer* command_buffer,
-                                      SDL_GPURenderPass* render_pass, SDL_GPUGraphicsPipeline* pipeline, uint32_t* popup_filter);
+// All functionality tied to UI, ie which isn't included when Common library is built separately. Singleton
+struct ApplicationScriptRegistrar
+{
+
+    std::unordered_map<String, ModuleUI> _ModuleVisualProperties;
+
+    static ApplicationScriptRegistrar& Get();
+
+    inline void Reset()
+    {
+        _ModuleVisualProperties.clear();
+    }
+
+};
+
+void ImGui_ImplSDLGPU3_RenderDrawData(ImDrawData* draw_data, SDL_GPUCommandBuffer* command_buffer, SDL_GPURenderPass* render_pass, SDL_GPUGraphicsPipeline* pipeline, uint32_t* popup_filter);
 
 /**
  * Main Telltale Editor application, UI interface. The normal TelltaleEditor class is just the functionality which can be used without the UI.
@@ -109,6 +127,15 @@ public:
     void SetCurrentPopup(Ptr<EditorPopup>, EditorUI& editor);
 
     void QueuePopup(Ptr<EditorPopup> popup, EditorUI& editor);
+    
+    void QueueMetaInstanceSelectionPopup(EditorUI& editor, String title, Ptr<FunctionBase> cb);
+    
+    void QueueResourcePickerPopup(EditorUI& editor, String title, StringMask mask, Ptr<FunctionBase> cb);
+    
+    void QueueMetaInstanceEditPopup(EditorUI& ui, String title, Ptr<FunctionBase> cb, String prompt,
+                                    Meta::ClassInstance val, Meta::ClassInstance cl = {});
+    
+    void PushWindow(Ptr<UIComponent> c);
 
 private:
 
@@ -120,7 +147,8 @@ private:
     };
 
     // UI CLASSES
-    std::vector<Ptr<UIStackable>> _UIStack;
+    std::vector<Ptr<UIStackable>> _UIStack; // only top most is rendered
+    std::vector<Ptr<UIComponent>> _UIWindows;
 
     void _Update();
 
@@ -129,6 +157,10 @@ private:
     void _SetLanguage(const String& language);
 
     void _RenderPopups();
+    
+    void _OnLog(CString str);
+    
+    void _EnsureConsoleBufferAlloc(U32 sz);
 
     enum class _UIRenderFilter
     {
@@ -169,7 +201,13 @@ private:
     ProjectManager _ProjectMgr;
     I32 _NewWidth = -1, _NewHeight = -1;
     Ptr<EditorPopup> _ActivePopup;
+    String _PendingOpenResourceLocation; // -file option, user requested file to open on startup
     std::queue<Ptr<EditorPopup>> _QueuedPopups;
+    
+    Ptr<FunctionBase> _ConsolePrivateCallback;
+    U8* _ConsoleBuffer = nullptr;
+    U32 _ConsoleBufferSize = 0;
+    U32 _ConsoleBufferOffset = 0;
 
     // RESOURCE MANAGEMENT
     SDL_Surface* _AppIcon;
@@ -192,7 +230,10 @@ private:
     friend class UIProjectSelect;
     friend class UIProjectCreate;
     friend class EditorUI;
-
+    friend class MenuBar;
+    friend class UIConsole;
+    friend class UIMemoryTracker;
+    
 };
 
 template void ApplicationUI::_PerformUIRenderFiltered<ApplicationUI::_UIRenderFilter::FILTER_NONE, false>(RenderFrame* pFrame);

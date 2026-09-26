@@ -86,6 +86,17 @@ class JobThread;
 
 namespace Memory // All memory helpers
 {
+
+    struct TrackedAllocation
+    {
+        String SrcFile; // src file name
+        String DebugStr;
+        CString ObjName;
+        U64 Timestamp; // MICROS
+        U64 Size; // allocation size
+        U32 SrcLine; // line in src file
+        U32 MemoryTag; // MEMORY_TAG enum
+    };
     
     // 1MB
 #define FAST_BUFFER_SIZE 0x100000
@@ -111,6 +122,12 @@ namespace Memory // All memory helpers
     };
     
     void DumpTrackedMemory(); // if in debug mode, prints all tracked memory allocations.
+
+    void AttachDebugString(void* ptr, const String& info);
+
+    void ViewTrackedMemory(std::vector<TrackedAllocation>& allocs); // get all active tracked allocations
+
+    CString GetMemoryTagString(U32 tag);
     
     U8* _DebugAllocateTracked(U64 _Nbytes, U32 tag, CString filename, U32 number, CString objName);
     void _DebugDeallocateTracked(U8* Ptr);
@@ -132,6 +149,8 @@ __FILE__, (U32) __LINE__, #_Type)) _Type(__VA_ARGS__)
 
 #define TTE_DEL(_Inst) { if(_Inst) { DestroyObject(*_Inst); TTE_FREE((U8*)_Inst); } }
 
+#define TTE_ATTACH_DBG_STR(_MyAlloc, _MyDbgStr) Memory::AttachDebugString(_MyAlloc, _MyDbgStr)
+
 #else
 
 // Release. Dont need to track any allocations.
@@ -144,6 +163,8 @@ __FILE__, (U32) __LINE__, #_Type)) _Type(__VA_ARGS__)
 #define TTE_ALLOC(_NBytes, _MemoryTag) new U8[_NBytes]()
 
 #define TTE_FREE(_ByteArray) delete[] ((U8*)_ByteArray)
+
+#define TTE_ATTACH_DBG_STR(_Al, _Str) ;
 
 #endif
 
@@ -245,7 +266,8 @@ public:
 
 // ================================================ STRING UTIL ================================================
 
-inline String StringTrim(const String& str) {
+inline String StringTrim(const String& str) 
+{
     size_t first = str.find_first_not_of(" \t\n\r\f\v");
     if (first == std::string::npos) return "";
     size_t last = str.find_last_not_of(" \t\n\r\f\v");
@@ -513,7 +535,8 @@ String MakeTypeName(String fullName);
 // ================================================== STRING MASK HELPER ==================================================
 
 /// A string mask to help find resources.
-class StringMask : public String {
+class StringMask : public String 
+{
 public:
     
     // MUST HAVE NO MEMBERS.
@@ -682,9 +705,9 @@ class WeakSlotSignal
     U64 _Stat = 0; // 2bits is the stat, rest are sanity bits to ensure it doesnt change (corruption checks).
     
     inline WeakSlotSignal() {}
-    inline WeakSlotSignal(WeakSlotSignal&&) : _Stat(0) {}
+    inline WeakSlotSignal(WeakSlotSignal&&) noexcept : _Stat(0) {}
     inline WeakSlotSignal(const WeakSlotSignal&) : _Stat(0) {}
-    WeakSlotSignal& operator=(WeakSlotSignal&&) { _Stat = 0; return *this; }
+    WeakSlotSignal& operator=(WeakSlotSignal&&) noexcept { _Stat = 0; return *this; }
     WeakSlotSignal& operator=(const WeakSlotSignal&) { _Stat = 0; return *this; }
     
 public:

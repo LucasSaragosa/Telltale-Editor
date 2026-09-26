@@ -11,6 +11,29 @@ void LuaAdapter_523::Initialise()
     luaL_openlibs(_State);
 }
 
+void LuaAdapter_523::PrintStackTrace()
+{
+    lua_State* L = _State;
+
+    TTE_LOG("== Lua 5.2.3 Stack Trace:");
+
+    lua_Debug ar{};
+    int level = 0;
+    while (lua_getstack(L, level, &ar))
+    {
+        if (lua_getinfo(L, "nSl", &ar))
+        {
+            const char* funcName = ar.name ? ar.name : "<??>";
+            const char* source = ar.short_src ? ar.short_src : "<??.lua>";
+            int currentline = ar.currentline;
+            TTE_LOG("== %s at %s:%d [%d]", funcName, source, currentline <= 0 ? 0 : currentline, level);
+        }
+        ++level;
+    }
+
+    TTE_LOG("========================");
+}
+
 Bool LuaAdapter_523::RunChunk(U8 *Chunk, U32 Len, Bool IsCompiled, CString Name)
 {
     int error = luaL_loadbufferx(_State, (const char *)Chunk, (size_t)Len, Name, IsCompiled ? "b" : "t"); // Load text buffer

@@ -7,7 +7,8 @@
 #include <set>
 
 // .PK2 (GAMEDATA.PK2 etc) FILES (OLD CONSOLE PACKS) ie 'TTArchive' legacy class only used in PS2 i think?
-class GamePack2 {
+class GamePack2 
+{
 public:
     
     static constexpr CString Extension = ".pk2";

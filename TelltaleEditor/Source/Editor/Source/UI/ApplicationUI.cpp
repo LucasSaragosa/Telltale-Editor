@@ -3,6 +3,7 @@
 
 #include <UI/ApplicationUI.hpp>
 #include <UI/EditorUI.hpp>
+#include <UI/UIEditors.hpp>
 #include <Renderer/RenderContext.hpp>
 
 #include <backends/imgui_impl_sdl3.h>
@@ -13,7 +14,18 @@
 #include <filesystem>
 #include <sstream>
 
+extern void luaModuleUI(LuaFunctionCollection& Col);
+
+// =========================================== APPLICATION SCRIPT REG
+
 DECL_VEC_ADDITION();
+
+static ApplicationScriptRegistrar _ASR{};
+
+ApplicationScriptRegistrar& ApplicationScriptRegistrar::Get()
+{
+    return _ASR;
+}
 
 // =========================================== APPLICATION UI CLASS
 
@@ -24,12 +36,88 @@ ApplicationUI::ApplicationUI() : _Device(nullptr), _Window(nullptr), _Editor(nul
 
 ApplicationUI::~ApplicationUI()
 {
-
+    _ASR.Reset();
 }
 
 void ApplicationUI::Quit()
 {
     _Flags.Remove(ApplicationFlag::RUNNING);
+}
+
+// =========================================== MENU OPTION IMPL
+
+void MenuOptionInterface::AddMenuOptions(CString myToolBarOption)
+{
+    for (const auto& option : MenuOptions)
+    {
+        if (option.ToolBarOption == myToolBarOption)
+        {
+            if (ImGui::MenuItem(option.OverrideSubOptionText ? option.OverrideSubOptionText : option.SubOption.c_str(), option.Shortcut.c_str()))
+            {
+                option.Requested = true;
+            }
+        }
+    }
+}
+
+Bool MenuOptionInterface::TestMenuOption(String toolBarOption, String subOption, String shortcut, U32 imguiKey, Bool needsLshift, Bool lctrl, Bool sep, CString ovText)
+{
+    for (const auto& option : MenuOptions)
+    {
+        if (option.ToolBarOption == toolBarOption && option.SubOption == subOption)
+        {
+            option.OverrideSubOptionText = ovText;
+            if(!option.Shortcut.empty())
+            {
+                if((needsLshift == ImGui::IsKeyDown(ImGuiKey_LeftShift)) && (lctrl == ImGui::IsKeyDown(ImGuiKey_LeftCtrl))  && ImGui::IsKeyReleased((ImGuiKey)imguiKey))
+                {
+                    option.Requested = true;
+                }
+            }
+            Bool bRequested = option.Requested;
+            option.Requested = false;
+            return bRequested;
+        }
+    }
+    auto& opt = MenuOptions.emplace_back();
+    opt.ToolBarOption = toolBarOption;
+    opt.SubOption = subOption;
+    opt.Shortcut = shortcut;
+    opt.Separator = sep;
+    opt.OverrideSubOptionText = ovText;
+    opt.ShortcutLControl = lctrl;
+    opt.ShortcutLShift = needsLshift;
+    opt.ShortcutKey = imguiKey;
+    return false;
+}
+
+Bool MenuOptionInterface::OpenContextMenu(CString toolBarOption, ImVec2 boxMin, ImVec2 boxMax)
+{
+    Bool opn = false;
+    ImVec2 cursor = ImGui::GetCursorScreenPos();
+    ImGui::SetCursorScreenPos(boxMin);
+    ImGui::PushID(toolBarOption);
+    ImGui::InvisibleButton(toolBarOption, boxMax - boxMin);
+    if(ImGui::BeginPopupContextItem())
+    {
+        for (const auto& option : MenuOptions)
+        {
+            if (option.ToolBarOption == toolBarOption)
+            {
+                if (ImGui::MenuItem(option.OverrideSubOptionText ? option.OverrideSubOptionText : option.SubOption.c_str(), option.Shortcut.c_str()))
+                {
+                    option.Requested = true;
+                }
+                if (option.Separator)
+                    ImGui::Separator();
+            }
+        }
+        ImGui::EndPopup();
+        opn = true;
+    }
+    ImGui::PopID();
+    ImGui::SetCursorScreenPos(cursor);
+    return opn;
 }
 
 // =========================================== UI COMPONENT IMPL
@@ -59,6 +147,7 @@ static U8* _LoadSTBI(String path, ApplicationUI& _MyUI, I32& width, I32& height)
     if (stream)
     {
         U8* data = TTE_ALLOC(stream->GetSize(), MEMORY_TAG_TEMPORARY);
+        TTE_ATTACH_DBG_STR(data, "Editor UI Texture " + path);
         stream->Read(data, stream->GetSize());
         int w = 0, h = 0;
         stbi_uc* rgba = stbi_load_from_memory((stbi_uc*)data, (int)stream->GetSize(), &w, &h, 0, STBI_rgb_alpha);
@@ -158,6 +247,7 @@ void UIComponent::DrawResourceTexture(const String& name, Float xPosFrac, Float 
         if (rgba)
         {
             SDL_GPUTextureSamplerBinding* pBinding = TTE_NEW(SDL_GPUTextureSamplerBinding, MEMORY_TAG_EDITOR_UI);
+            TTE_ATTACH_DBG_STR(pBinding, "SDL3 Texture Sampler Binding " + name);
             ImGui_ImplSDLGPU3_Data* bd = ImGui_ImplSDLGPU3_GetBackendData();
             pBinding->sampler = bd->FontSampler;
 
@@ -270,10 +360,27 @@ void ApplicationUI::SetWindowSize(I32 width, I32 height)
 
 // =========================================== MAIN APPLICATION LOOP
 
+void ApplicationUI::QueueMetaInstanceSelectionPopup(EditorUI& editor, String title, Ptr<FunctionBase> cb)
+{
+    QueuePopup(TTE_NEW_PTR(MetaClassPickerPopup, MEMORY_TAG_EDITOR_UI, title, cb), editor);
+}
+
+void ApplicationUI::QueueResourcePickerPopup(EditorUI& editor, String title, StringMask mask, Ptr<FunctionBase> cb)
+{
+    QueuePopup(TTE_NEW_PTR(ResourcePickerPopup, MEMORY_TAG_EDITOR_UI, title, mask, cb), editor);
+}
+
+void ApplicationUI::QueueMetaInstanceEditPopup(EditorUI& ui, String title, Ptr<FunctionBase> cb, String prompt,
+                                Meta::ClassInstance val, Meta::ClassInstance cl)
+{
+    QueuePopup(TTE_NEW_PTR(MetaInstanceEditPopup, MEMORY_TAG_EDITOR_UI, ui, title, cb, prompt, val, cl), ui);
+}
+
 void ApplicationUI::QueuePopup(Ptr<EditorPopup> popup, EditorUI& editor)
 {
     if(popup)
     {
+        TTE_ATTACH_DBG_STR(popup.get(), "Editor Popup");
         popup->Editor = &editor;
         _QueuedPopups.push(std::move(popup));
     }
@@ -301,8 +408,10 @@ class _OnExitHelper
          
     ~_OnExitHelper()
     {
-        String f = Dir + "TTE_LatestLog.txt"; 
+#ifdef DEBUG
+        String f = Dir + "TTE_LatestLog.txt";
         DumpLoggerCache(f.c_str());
+#endif
     }
 
 };
@@ -340,8 +449,45 @@ void ApplicationUI::_Update()
        // SDL_SetWindowBordered(_Window, false);
         pStackable->Render();
     }
+    
+    if (!_UIWindows.empty())
+    {
+        const void* beginCache = _UIWindows.data();
+        U32 nWin = (U32)_UIWindows.size();
+
+        for (auto it = _UIWindows.begin(); it != _UIWindows.end(); )
+        {
+            Bool bClose = (*it)->Render();
+
+            if (_UIWindows.data() != beginCache || _UIWindows.size() != nWin)
+            {
+                TTE_ASSERT(false, "Cannot push windows while rendering windows, use state.");
+                break;
+            }
+
+            if (bClose)
+            {
+                it = _UIWindows.erase(it);
+                nWin--;
+                beginCache = _UIWindows.data();
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+
 
     ImGui::PopFont();
+}
+
+void ApplicationUI::PushWindow(Ptr<UIComponent> c)
+{
+    if(c)
+    {
+        _UIWindows.push_back(std::move(c));
+    }
 }
 
 void ApplicationUI::_OnProjectLoad()
@@ -466,11 +612,20 @@ I32 ApplicationUI::Run(const std::vector<CommandLine::TaskArgument>& args)
 
     // LOGGER SETUP
     _OnExitHelper onExit(userDir);
+#ifdef DEBUG
     ToggleLoggerCache(true); // Log console to file for user to check any errors
+#endif
+    if(!_ConsolePrivateCallback)
+    {
+        _ConsolePrivateCallback = ALLOCATE_METHOD_CALLBACK_1(this, _OnLog, ApplicationUI, CString);
+        _ConsolePrivateCallback->Tag = Symbol("ApplicationLogger");
+        AttachLoggerCallback(_ConsolePrivateCallback);
+    }
 
     // USER DIR
     userDir = CommandLine::GetStringArgumentOrDefault(args, "-userdir", "./");
     projPath = CommandLine::GetStringArgumentOrDefault(args, "-project", "");
+    _PendingOpenResourceLocation = CommandLine::GetStringArgumentOrDefault(args, "-file", "");
     if (!StringEndsWith(userDir, "/") && !StringEndsWith(userDir, "\\"))
         userDir += "/";
     if (userDir == "./")
@@ -503,7 +658,7 @@ I32 ApplicationUI::Run(const std::vector<CommandLine::TaskArgument>& args)
     RenderContext::Initialise();
 
     // INIT EMPTY CONTEXT
-    _Editor = CreateEditorContext({});
+    _Editor = CreateEditorContext({}, {}, {}, &luaModuleUI);
 
     CString titleBar = "Telltale Editor v" TTE_VERSION;
 #ifdef DEBUG
@@ -528,7 +683,7 @@ I32 ApplicationUI::Run(const std::vector<CommandLine::TaskArgument>& args)
     // TEST STARTUP PROJECT
     if (!projPath.empty() && _ProjectMgr.SetProjectDisk(projPath))
     {
-        _Window = SDL_CreateWindow(titleBar, DEFAULT_WINDOW_SIZE, 0);
+        _Window = SDL_CreateWindow(titleBar, DEFAULT_WINDOW_SIZE, SDL_WINDOW_HIGH_PIXEL_DENSITY);
         SDL_SetWindowPosition(_Window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
         SDL_ShowWindow(_Window);
         TTE_LOG("Launching project at %s", projPath.c_str());
@@ -540,7 +695,7 @@ I32 ApplicationUI::Run(const std::vector<CommandLine::TaskArgument>& args)
         U32 wW = 0, wH = 0;
         Ptr<UIProjectSelect> pSelect = TTE_NEW_PTR(UIProjectSelect, MEMORY_TAG_EDITOR_UI, *this);
         pSelect->GetWindowSize(wW, wH);
-        _Window = SDL_CreateWindow(titleBar, wW, wH, SDL_WINDOW_HIDDEN);
+        _Window = SDL_CreateWindow(titleBar, wW, wH, SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY);
         SDL_SetWindowPosition(_Window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
         SDL_SetWindowMinimumSize(_Window, 340, 250);
         SDL_ShowWindow(_Window);
@@ -576,6 +731,7 @@ I32 ApplicationUI::Run(const std::vector<CommandLine::TaskArgument>& args)
     init_info.ColorTargetFormat = SDL_GetGPUSwapchainTextureFormat(_Device, _Window);
     init_info.MSAASamples = SDL_GPU_SAMPLECOUNT_1;
     ImGui_ImplSDLGPU3_Init(&init_info);
+    ImGui::GetIO().ConfigWindowsMoveFromTitleBarOnly = true;
 
     // INIT FONT
     _EditorFont = nullptr;
@@ -675,13 +831,33 @@ I32 ApplicationUI::Run(const std::vector<CommandLine::TaskArgument>& args)
     _Flags.Add(ApplicationFlag::RUNNING);
     while (_Flags.Test(ApplicationFlag::RUNNING))
     {
+        
+        if(_Flags.Test(ApplicationFlag::WANT_QUIT))
+        {
+            _Flags.Remove(ApplicationFlag::WANT_QUIT);
+            _Flags.Remove(ApplicationFlag::RUNNING);
+        }
+        if(_Flags.Test(ApplicationFlag::WANT_SWITCH_PROJECT))
+        {
+            _WorkspaceProps.Save();
+            _Flags.Remove(ApplicationFlag::WANT_SWITCH_PROJECT);
+            U32 wW = 0, wH = 0;
+            Ptr<UIProjectSelect> pSelect = TTE_NEW_PTR(UIProjectSelect, MEMORY_TAG_EDITOR_UI, *this);
+            pSelect->GetWindowSize(wW, wH);
+            SDL_SetWindowPosition(_Window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+            _EditorResourceReg = {};
+            _EditorRenderContext = {};
+            PopUI();
+            PushUI(std::move(pSelect));
+        }
+        
         // BEGIN
         ImGui_ImplSDLGPU3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
         // UPDATE AND RENDER UI
-        _Update();
+        _Update(); 
         _RenderPopups();
 
         // END
@@ -707,7 +883,7 @@ I32 ApplicationUI::Run(const std::vector<CommandLine::TaskArgument>& args)
                 if (_EditorRenderContext)
                 {
                     // UI RENDER CALLBACK
-                    Method<ApplicationUI, false, RenderFrame*>
+                    Method<ApplicationUI, MethodLockType::RAW, RenderFrame*>
                         callback(this, static_cast<void (ApplicationUI::*)(RenderFrame*)>(&ApplicationUI::_PerformUIRenderFiltered<_UIRenderFilter::FILTER_NONE, true>));
                     _EditorRenderContext->GetPostRenderMainThreadCallbacks().PushCallback(TTE_PROXY_PTR(&callback, FunctionBase));
 
@@ -763,6 +939,8 @@ I32 ApplicationUI::Run(const std::vector<CommandLine::TaskArgument>& args)
             TTE_DEL(tex.second.DrawBind);
         }
     }
+    
+    // CLEAN UP + CLEANLINESS!
     _ResourceTextures.clear();
     _EditorRenderContext.reset();
     _EditorResourceReg.reset();
@@ -780,6 +958,18 @@ I32 ApplicationUI::Run(const std::vector<CommandLine::TaskArgument>& args)
     _ImContext = nullptr;
     _Window = nullptr;
     _Editor = nullptr;
+    _Flags = {};
+    
+    if(_ConsolePrivateCallback)
+    {
+        _ConsolePrivateCallback = {};
+        DetachLoggerCallback(Symbol("ApplicationLogger"));
+    }
+    if(_ConsoleBuffer)
+    {
+        TTE_FREE(_ConsoleBuffer);
+        _ConsoleBuffer = nullptr;
+    }
 
     return 0;
 }
@@ -814,4 +1004,207 @@ void ApplicationUI::_RenderPopups()
         _ActivePopup = std::move(_QueuedPopups.front());
         _QueuedPopups.pop();
     }
+}
+
+void ApplicationUI::_EnsureConsoleBufferAlloc(U32 required)
+{
+    static U32 MAX_SIZE = 2 * 1024 * 1024; // 2 MB
+    if (required + 1 > _ConsoleBufferSize) // +1
+    {
+        U8* oldBuf = _ConsoleBuffer;
+        U32 oldSize = _ConsoleBufferSize;
+        U32 newSize = MIN(MAX(MAX(oldSize, required), 16 * 1024), MAX_SIZE);
+
+        _ConsoleBuffer = TTE_ALLOC(newSize + 1, MEMORY_TAG_EDITOR_UI);
+        TTE_ATTACH_DBG_STR(_ConsoleBuffer, "Console Backlog String Buffer");
+        
+        if (oldBuf)
+        {
+            memcpy(_ConsoleBuffer, oldBuf, _ConsoleBufferOffset);
+            TTE_FREE(oldBuf);
+        }
+
+        _ConsoleBufferSize = newSize;
+    }
+}
+
+void ApplicationUI::_OnLog(CString str)
+{
+    U32 slen = (U32)SDL_strlen(str);
+    Bool bNeedNewLine = (slen > 0 && str[slen - 1] != '\n');
+    U32 needed = _ConsoleBufferOffset + slen + (bNeedNewLine ? 1 : 0);
+    _EnsureConsoleBufferAlloc(needed);
+    U8* dst = _ConsoleBuffer + _ConsoleBufferOffset;
+    memcpy(dst, str, slen);
+    dst += slen;
+    _ConsoleBufferOffset += slen;
+    if (bNeedNewLine)
+    {
+        *dst++ = '\n';
+        _ConsoleBufferOffset++;
+    }
+    *dst = 0;
+}
+
+UIConsole::UIConsole(ApplicationUI& app) : UIStackable(app)
+{
+}
+
+Bool UIConsole::Render()
+{
+    Bool closing = false;
+    ApplicationUI& app = GetApplication();
+    if(ImGui::Begin("Console"))
+    {
+        if (ImGui::BeginPopupContextItem())
+        {
+            if (ImGui::MenuItem("Close"))
+                closing = true;
+            ImGui::EndPopup();
+        }
+        
+        ImGui::TextUnformatted("Auto Scroll:");
+        ImGui::SameLine();
+        ImGui::Checkbox("##ascroll", &_Autoscroll);
+        ImGui::SameLine();
+        
+        ImGui::SetCursorPosX(ImGui::GetWindowSize().x - 50.0f);
+        if(ImGui::Button("Close"))
+        {
+            closing = true;
+        }
+        
+        ImGui::BeginChild("ConsoleScrollRegion",
+                          ImVec2(0, -ImGui::GetFrameHeightWithSpacing()),
+                          true,
+                          ImGuiWindowFlags_HorizontalScrollbar);
+
+        ImGui::PushTextWrapPos();
+        if(app._ConsoleBuffer)
+            ImGui::TextUnformatted((const char*)app._ConsoleBuffer);
+        ImGui::PopTextWrapPos();
+
+        if (_Autoscroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+            ImGui::SetScrollHereY(1.0f);
+
+        ImGui::EndChild();
+        
+    }
+    ImGui::End();
+    return closing;
+}
+
+UIConsole::~UIConsole()
+{
+    GetApplication()._Flags.Remove(ApplicationFlag::CONSOLE_WINDOW_OPEN);
+}
+
+Bool UIMemoryTracker::Render()
+{
+    
+    const Float INTERVAL = 2.0F;
+    U64 now = GetTimeStamp();
+    if(GetTimeStampDifference(_Ts, now) >= INTERVAL)
+    {
+        _Ts = now;
+        std::vector<Memory::TrackedAllocation> a{};
+        Memory::ViewTrackedMemory(a);
+        size_t old = _Tracked.size();
+        _Tracked.clear();
+        U64 oldAllocTot = _AllocTotal;
+        _AllocTotal = 0;
+        for(const auto& track: a)
+        {
+            Tracked t{track};
+            t.SourceFull = t.SrcFile + ":" + std::to_string(t.SrcLine);
+            _AllocTotal += track.Size;
+            _Tracked.insert(std::move(t));
+        }
+        _AllocAverageSize = (double)_AllocTotal / (double)_Tracked.size();
+        _Pressure = oldAllocTot == 0 ? 0.0 :  (Float)(_AllocTotal - oldAllocTot) / INTERVAL;
+        
+    }
+    
+    Bool closing = false;
+    ApplicationUI& app = GetApplication();
+    if(ImGui::Begin("Memory"))
+    {
+        if (ImGui::BeginPopupContextItem())
+        {
+            if (ImGui::MenuItem("Close"))
+                closing = true;
+            ImGui::EndPopup();
+        }
+        ImGui::Text("Usage: %lf MB\tAverage: %lf KB\tPressure: %f B/s", 1e-6 * (double)_AllocTotal, _AllocAverageSize * 1e-3, _Pressure);
+        ImGui::SetCursorPosX(ImGui::GetWindowSize().x - 70.0f);
+        if(ImGui::Button("Close"))
+        {
+            closing = true;
+        }
+        ImGui::TextUnformatted("Filter:");
+        ImGui::SameLine();
+        if(ImGui::BeginCombo("##sw", _TagFilter == 999 ? "All" : Memory::GetMemoryTagString(_TagFilter)))
+        {
+            U32 i = -1;
+            CString t = "All";
+            do
+            {
+                if(t)
+                {
+                    if(ImGui::Selectable(t))
+                    {
+                        _TagFilter = i == -1 ? 999 : i;
+                    }
+                }
+                else break;
+                t = Memory::GetMemoryTagString(++i);
+            }
+            while(t);
+            ImGui::EndCombo();
+        }
+        
+        if(ImGui::BeginTable("##data", 5, ImGuiTableFlags_Resizable))
+        {
+            ImGui::TableSetupColumn("Source");
+            ImGui::TableSetupColumn("Object");
+            ImGui::TableSetupColumn("Size");
+            ImGui::TableSetupColumn("Info");
+            ImGui::TableSetupColumn("Age");
+            ImGui::TableHeadersRow();
+            for(const auto& track: _Tracked)
+            {
+                if(_TagFilter == 999 || track.MemoryTag == _TagFilter)
+                {
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted(track.SourceFull.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted(track.ObjName == nullptr ? "N/A" : track.ObjName);
+                    ImGui::TableNextColumn();
+                    ImGui::Text(track.Size > 1024*1024 ? "%f MB" : track.Size > 1024 ? "%f KB" : "%.0f B",
+                                track.Size > 1024*2024 ? (Float)track.Size * 1e-6f : track.Size > 1024 ? (Float)track.Size * 1e-3f : (Float)track.Size);
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted(track.DebugStr.empty() ? "N/A" : track.DebugStr.c_str());
+                    ImGui::TableNextColumn();
+                    Float ageSeconds = GetTimeStampDifference(track.Timestamp, now);
+                    ImGui::Text(ageSeconds > 3599.0f ? "%f h" : ageSeconds > 59.0f ? "%f m" : "%f s",
+                                ageSeconds > 3599.f ? ageSeconds / 3600.0f : ageSeconds > 59.0f ? ageSeconds / 60.0f : ageSeconds);
+                    ImGui::TableNextRow();
+                }
+            }
+            ImGui::EndTable();
+        }
+        
+    }
+    ImGui::End();
+    return closing;
+}
+
+UIMemoryTracker::UIMemoryTracker(ApplicationUI& app) : UIStackable(app)
+{
+    GetApplication()._Flags.Add(ApplicationFlag::MEMORY_WINDOW_OPEN);
+}
+
+UIMemoryTracker::~UIMemoryTracker()
+{
+    GetApplication()._Flags.Remove(ApplicationFlag::MEMORY_WINDOW_OPEN);
 }

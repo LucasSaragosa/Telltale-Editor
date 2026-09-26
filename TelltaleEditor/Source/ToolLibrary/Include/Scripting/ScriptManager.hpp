@@ -40,6 +40,17 @@ struct LuaFunctionCollection
     std::unordered_map<String, String> GlobalDescriptions; // global name to description
     
     std::vector<LuaCFunction> GenerateMetaTables; // generates meta table for scripts, see lua manager LuaConstantMetaTable
+
+    inline void Append(LuaFunctionCollection&& rhs)
+    {
+        Functions.reserve(Functions.size() + rhs.Functions.size());
+        Functions.insert(Functions.end(), rhs.Functions.begin(), rhs.Functions.end());
+        StringGlobals.insert(rhs.StringGlobals.begin(), rhs.StringGlobals.end());
+        IntegerGlobals.insert(rhs.IntegerGlobals.begin(), rhs.IntegerGlobals.end());
+        GlobalDescriptions.insert(rhs.GlobalDescriptions.begin(), rhs.GlobalDescriptions.end());
+        GenerateMetaTables.reserve(GenerateMetaTables.size() + rhs.GenerateMetaTables.size());
+        GenerateMetaTables.insert(GenerateMetaTables.end(), rhs.GenerateMetaTables.begin(), rhs.GenerateMetaTables.end());
+    }
     
 };
 
@@ -365,29 +376,5 @@ namespace ScriptManager
     
 }
 
-LuaFunctionCollection luaGameEngine(Bool bWorker); // actual engine game api in EngineLUAApi.cpp
+LuaFunctionCollection luaGameEngine(Bool bWorker); // actual engine game api in EngineLUAApi.cpp, for ToolLibrary implementations (else in LuaCompleteEngine in Common)
 LuaFunctionCollection luaLibraryAPI(Bool bWorker); // actual api in LibraryLUAApi.cpp
-
-inline void InjectFullLuaAPI(LuaManager& man, Bool bWorker)
-{
-    LuaFunctionCollection Col = luaGameEngine(bWorker); // adds resource api, prop
-    ScriptManager::RegisterCollection(man, Col);
-    Col = luaLibraryAPI(bWorker);
-    ScriptManager::RegisterCollection(man, Col);
-    CString dumpTable =
-    R"(
-    function TableToString(o)
-       if type(o) == 'table' then
-          local s = '{ '
-          for k,v in pairs(o) do
-             if type(k) ~= 'number' then k = '"'..k..'"' end
-             s = s .. '['..k..'] = ' .. TableToString(v) .. ', '
-          end
-          return s .. '} '
-       else
-          return tostring(o)
-       end
-    end
-    )";
-    man.RunText(dumpTable, (U32)strlen(dumpTable), false, "TableToString.lua");
-}

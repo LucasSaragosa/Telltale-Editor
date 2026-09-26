@@ -5,6 +5,7 @@ require("ToolLibrary/Game/VersionCRC.lua")
 
 require("ToolLibrary/UI/ModuleCollector.lua")
 
+require("ToolLibrary/Game/Common/LegacyHandle.lua")
 require("ToolLibrary/Game/TX100/D3DTexture.lua")
 require("ToolLibrary/Game/TX100/D3DMesh.lua")
 require("ToolLibrary/Game/Common/Scene.lua")
@@ -15,8 +16,11 @@ require("ToolLibrary/Game/Common/InputMapper.lua")
 require("ToolLibrary/Game/Common/WalkBoxes.lua")
 
 function TX100_RegisterModuleUI()
-
 	ModuleCollector_RegisterUI(0)
+end
+
+function TX100_ProceduralLookAt_OnAttach(props)
+	ProceduralLookAt_OnAttach(props, 0) -- version 0
 end
 
 function TX100_GetGameDescriptor()
@@ -32,6 +36,7 @@ function TX100_GetGameDescriptor()
 	MetaPushGameCapability(texasHoldem, kGameCapSeparateAnimationTransform)
 	MetaPushGameCapability(texasHoldem, kGameCapUsesLenc)
 	MetaPushGameCapability(texasHoldem, kGameCapRawClassNames)
+	MetaPushGameCapability(texasHoldem, kGameCapUninheritedLookAts)
 	MetaPushExecutableHash(texasHoldem, "E64AB49D1EE153E3", "PC", "")
 	-- does not have any encryption, so no encryption keys
 	return texasHoldem
@@ -48,17 +53,6 @@ function RegisterTXCollection(name, k, v, fl)
 	end
 	MetaRegisterCollection(without, k, v)
 	return without -- return both
-end
-
--- registers Handle<T>. ensure the name is correct.
-function RegisterTXHandle(name)
-	local MetaHandle = { VersionIndex = 0 }
-	MetaHandle.Name = name
-	MetaHandle.Flags = kMetaClassIntrinsic
-	MetaHandle.Members = {}
-	MetaHandle.Members[1] = { Name = "mHandle", Class = kMetaClassSymbol, Flags = kMetaMemberVersionDisable }
-	MetaRegisterClass(MetaHandle)
-	return MetaHandle
 end
 
 function RegisterTXANMValue(base, typeName)
@@ -101,18 +95,18 @@ function RegisterTX100(vendor)
 	MetaAssociateFolderExtension("TX100", "*.d3dtx", "Textures/")
 
 	-- ALL HANDLE TYPES
-	local hAnim = RegisterTXHandle("class Handle<class Animation>")
-	local hChore = RegisterTXHandle("class Handle<class Chore>")
-	local hMesh = RegisterTXHandle("class Handle<class D3DMesh>")
-	local hTexture = RegisterTXHandle("class Handle<class D3DTexture>")
-	local hDlg = RegisterTXHandle("class Handle<class DialogResource>")
-	local hProp = RegisterTXHandle("class Handle<class PropertySet>")
-	local hAud = RegisterTXHandle("class Handle<class AudioData")
-	local hScene = RegisterTXHandle("class Handle<class Scene>")
-	local hSkeleton = RegisterTXHandle("class Handle<class Skeleton>")
-	local hVoiceData = RegisterTXHandle("class Handle<class VoiceData>")
-	local hWalkBoxes = RegisterTXHandle("class Handle<class WalkBoxes>")
-	local hFont = RegisterTXHandle("class Handle<class Font>")
+	local hAnim = RegisterLegacyHandle("class Handle<class Animation>")
+	local hChore = RegisterLegacyHandle("class Handle<class Chore>")
+	local hMesh = RegisterLegacyHandle("class Handle<class D3DMesh>")
+	local hTexture = RegisterLegacyHandle("class Handle<class D3DTexture>")
+	local hDlg = RegisterLegacyHandle("class Handle<class DialogResource>")
+	local hProp = RegisterLegacyHandle("class Handle<class PropertySet>")
+	local hAud = RegisterLegacyHandle("class Handle<class AudioData")
+	local hScene = RegisterLegacyHandle("class Handle<class Scene>")
+	local hSkeleton = RegisterLegacyHandle("class Handle<class Skeleton>")
+	local hVoiceData = RegisterLegacyHandle("class Handle<class VoiceData>")
+	local hWalkBoxes = RegisterLegacyHandle("class Handle<class WalkBoxes>")
+	local hFont = RegisterLegacyHandle("class Handle<class Font>")
 
 	local MetaHandleArrayProp = { VersionIndex = 0 }
 	MetaHandleArrayProp.Name = "class List<class Handle<class PropertySet> >"
@@ -351,18 +345,20 @@ function RegisterTX100(vendor)
 
 	local chore = NewClass("class Chore", 0)
 	chore.Extension = "chore"
+	chore.Normaliser = "NormaliseChore0"
 	chore.Serialiser = "SerialiseChore0"
 	chore.Members[1] = NewMember("mName", kMetaClassString)
 	chore.Members[2] = NewMember("mhChoreScene", hScene)
 	chore.Members[3] = NewMember("mLength", kMetaFloat)
 	chore.Members[4] = NewMember("mNumResources", kMetaInt)
 	chore.Members[5] = NewMember("mNumAgents", kMetaInt)
-	chore.Members[6] = NewMember("mResources", arrayChoreResource) -- WHY? this isnt even used.
+	chore.Members[6] = NewMember("mResources", arrayChoreResource) -- WHY? this isnt even used. (until runtime)
 	chore.Members[7] = NewMember("mAgents", arrayChoreAgent)    -- AGAIN THEY DONT USE THIS!
 	chore.Members[8] = NewMember("mEditorProps", prop)
 	chore.Members[9] = NewMember("_mResources", arrayChoreResource,
 	kMetaMemberSerialiseDisable + kMetaMemberVersionDisable)
-	chore.Members[10] = NewMember("_mAgents", arrayChoreAgent, kMetaMemberSerialiseDisable + kMetaMemberVersionDisable)
+	chore.Members[10] = NewMember("_mAgents", arrayChoreAgent,
+	kMetaMemberSerialiseDisable + kMetaMemberVersionDisable)
 	MetaRegisterClass(chore)
 	MetaAssociateFolderExtension("TX100", "*.chore", "Chores/")
 

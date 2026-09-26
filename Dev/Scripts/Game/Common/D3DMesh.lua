@@ -101,7 +101,7 @@ function NormaliseD3DMesh0(inst, state)
     end
 
     local indexBuffer = MetaGetMember(inst, "_IndexBuffer0")
-    CommonMeshSetIndexBuffer(state, MetaGetClassValue(MetaGetMember(indexBuffer, "mNumIndicies")), 
+    CommonMeshSetIndexBuffer(state, MetaGetClassValue(MetaGetMember(indexBuffer, "mNumIndicies")),
                                     MetaGetClassValue(MetaGetMember(indexBuffer, "mFormat")) == 101,
                                     MetaGetMember(indexBuffer, "_IndexBufferData"))
 

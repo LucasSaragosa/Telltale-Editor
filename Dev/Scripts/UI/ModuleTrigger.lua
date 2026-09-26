@@ -11,3 +11,4 @@ function ModuleTrigger_RegisterUI(moduleVersion)
     RegisterModuleUI("trigger", "Module/Trigger.png", dataTable)
 
 end
+

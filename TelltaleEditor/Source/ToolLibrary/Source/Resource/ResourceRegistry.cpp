@@ -1,5 +1,6 @@
 #include <Resource/ResourceRegistry.hpp>
 #include <Core/Context.hpp>
+#include <Core/Callbacks.hpp>
 
 #include <filesystem>
 
@@ -88,7 +89,7 @@ Bool StringMask::MaskCompare(CString pattern, CString str, CString end, MaskMode
 
 Bool StringMask::MatchSearchMask(CString testString,CString searchMask,StringMask::MaskMode mode, Bool* excluded)
 {
-    if (!*searchMask) return true;  // Empty mask matches everything
+    // if (!*searchMask) return true;  // Empty mask matches everything. ACTUALLY no ill hold off on this
     
     Bool foundMatch = false;
     
@@ -153,7 +154,9 @@ Ptr<RegistryDirectory> RegistryDirectory_System::OpenDirectory(const String& nam
     if(fs::is_directory(dirPath))
     {
         // sub directory
-        return TTE_NEW_PTR(RegistryDirectory_System, MEMORY_TAG_RESOURCE_REGISTRY, dirPath.string());
+        Ptr<RegistryDirectory> dir =  TTE_NEW_PTR(RegistryDirectory_System, MEMORY_TAG_RESOURCE_REGISTRY, dirPath.string());
+        TTE_ATTACH_DBG_STR(dir.get(), "SystemDir:"+name);
+        return dir;
     }
     return {};
 }
@@ -369,7 +372,17 @@ void RegistryDirectory_System::RefreshResources()
     _LastLocatedResource.clear();
 }
 
+Bool RegistryDirectory_System::IsEmpty()
+{
+    return fs::is_empty(_Path);
+}
+
 // TTARCH1 DIRECTORY
+
+Bool RegistryDirectory_TTArchive::IsEmpty()
+{
+    return _Archive._Files.empty();
+}
 
 Bool RegistryDirectory_TTArchive::UpdateArchiveInternal(const String& resourceName, Ptr<ResourceLocation>& location, std::unique_lock<std::recursive_mutex>& lck)
 {
@@ -628,11 +641,6 @@ Bool RegistryDirectory_GamePack2::HasResource(const Symbol& resourceName, const 
     return _LastLocatedResourceStatus;
 }
 
-String RegistryDirectory_ISO9660::GetResourceName(const Symbol& resource)
-{
-    return HasResource(resource, nullptr) ? _LastLocatedResource : "";
-}
-
 Bool RegistryDirectory_GamePack2::DeleteResource(const Symbol& resource)
 {
     _Pack.DeleteFile(resource);
@@ -666,6 +674,23 @@ void RegistryDirectory_GamePack2::RefreshResources()
 {
     _LastLocatedResource.clear();
     _LastLocatedResourceStatus = false;
+}
+
+Bool RegistryDirectory_GamePack2::IsEmpty()
+{
+    return _Pack._Files.empty();
+}
+
+Bool RegistryDirectory_GamePack2::GetResources(std::vector<std::pair<Symbol, Ptr<ResourceLocation>>>& resources,
+    Ptr<ResourceLocation>& self, const StringMask* optionalMask)
+{
+    std::set<String> files{};
+    _Pack.GetFiles(files);
+
+    for (auto& f : files)
+        resources.push_back(std::make_pair(Symbol(f), self));
+
+    return true;
 }
 
 // ===== PKG
@@ -783,6 +808,15 @@ Bool RegistryDirectory_PlaystationPKG::GetResources(std::vector<std::pair<Symbol
     return true;
 }
 
+Bool RegistryDirectory_PlaystationPKG::IsEmpty()
+{
+    for(const auto& entry : _PKG._Entries)
+    {
+        if (entry.Type == PlaystationPKG::EntryType::REGULAR_FILE) return false;
+    }
+    return false;
+}
+
 // ISO
 
 Ptr<RegistryDirectory> RegistryDirectory_ISO9660::OpenDirectory(const String& name)
@@ -790,19 +824,10 @@ Ptr<RegistryDirectory> RegistryDirectory_ISO9660::OpenDirectory(const String& na
     return {};
 }
 
-Bool RegistryDirectory_GamePack2::GetResources(std::vector<std::pair<Symbol, Ptr<ResourceLocation>>>& resources,
-                                               Ptr<ResourceLocation>& self, const StringMask* optionalMask)
+String RegistryDirectory_ISO9660::GetResourceName(const Symbol& resource)
 {
-    std::set<String> files{};
-    _Pack.GetFiles(files);
-    
-    for(auto& f: files)
-        resources.push_back(std::make_pair(Symbol(f), self));
-    
-    return true;
+    return HasResource(resource, nullptr) ? _LastLocatedResource : "";
 }
-
-// ISO DIRECTORY
 
 Bool RegistryDirectory_ISO9660::UpdateArchiveInternal(const String& resourceName, Ptr<ResourceLocation>& location, std::unique_lock<std::recursive_mutex>& lck)
 {
@@ -893,6 +918,11 @@ void RegistryDirectory_ISO9660::RefreshResources()
     _LastLocatedResourceStatus = false;
 }
 
+Bool RegistryDirectory_ISO9660::IsEmpty()
+{
+    return false; // ISO thats empty is very unlikely anyway
+}
+
 Bool RegistryDirectory_ISO9660::GetResources(std::vector<std::pair<Symbol, Ptr<ResourceLocation>>>& resources,
                                              Ptr<ResourceLocation>& self, const StringMask* optionalMask)
 {
@@ -922,6 +952,11 @@ Bool RegistryDirectory_TTArchive2::UpdateArchiveInternal(const String& resourceN
 Ptr<RegistryDirectory> RegistryDirectory_TTArchive2::OpenDirectory(const String& name)
 {
     return {};
+}
+
+Bool RegistryDirectory_TTArchive2::IsEmpty()
+{
+    return _Archive._Files.empty();
 }
 
 Bool RegistryDirectory_TTArchive2::GetResourceNames(std::set<String>& resources, const StringMask* optionalMask)
@@ -1123,6 +1158,16 @@ Bool ResourceLogicalLocation::HasResource(const Symbol &name)
     for(auto& set : SetStack)
     {
         if(set.Resolved && set.Resolved->HasResource(name))
+            return true;
+    }
+    return false;
+}
+
+Bool ResourceLogicalLocation::IsEmpty()
+{
+    for (auto& set : SetStack)
+    {
+        if (set.Resolved && set.Resolved->IsEmpty())
             return true;
     }
     return false;
@@ -1908,6 +1953,7 @@ void ResourceRegistry::MountSystem(const String &id, const String& _fspath, Bool
         fspath += "/";
     
     auto dir = TTE_NEW_PTR(ResourceConcreteLocation<RegistryDirectory_System>, MEMORY_TAG_RESOURCE_REGISTRY, id, fspath);
+    TTE_ATTACH_DBG_STR(dir.get(), "ConcreteSystemDir:" + id);
     _Locations.push_back(dir);
     
     if(bUsesResourceSys && !force)
@@ -1943,6 +1989,7 @@ void ResourceRegistry::MountSystem(const String &id, const String& _fspath, Bool
             
             // Create sub directory concrete location and map it from master. Treat like flat filesystem in legacy games.
             auto subDir = TTE_NEW_PTR(ResourceConcreteLocation<RegistryDirectory_System>, MEMORY_TAG_RESOURCE_REGISTRY, folderID, physicalPath);
+            TTE_ATTACH_DBG_STR(subDir.get(), "ConcreteSystemSubDir:" + folderID);
             _Locations.push_back(subDir);
             
             // Map it to main
@@ -1983,6 +2030,7 @@ void ResourceRegistry::CreateLogicalLocation(const String &name)
     else
     {
         auto logicalLocation = TTE_NEW_PTR(ResourceLogicalLocation, MEMORY_TAG_RESOURCE_REGISTRY, name);
+        TTE_ATTACH_DBG_STR(logicalLocation.get(), "LogicalLocation:" + name);
         _Locations.push_back(std::move(logicalLocation));
     }
 }
@@ -1998,6 +2046,19 @@ void ResourceRegistry::GetLocationResourceNames(const Symbol &location, std::set
             return;
         }
     }
+}
+
+Bool ResourceRegistry::IsLocationEmpty(const Symbol& location)
+{
+    SCOPE_LOCK();
+    for (const auto& l : _Locations)
+    {
+        if (location == l->Name)
+        {
+            return l->IsEmpty();
+        }
+    }
+    return true;
 }
 
 Bool ResourceRegistry::ResourceLocationExists(const Symbol &name)
@@ -2028,6 +2089,7 @@ void ResourceRegistry::CreateConcreteDirectoryLocation(const String &_name, cons
     else
     {
         auto concreteLocation = TTE_NEW_PTR(ResourceConcreteLocation<RegistryDirectory_System>, MEMORY_TAG_RESOURCE_REGISTRY, name, physPath);
+        TTE_ATTACH_DBG_STR(concreteLocation.get(), "ConcreteSystemDir:" + name);
         _Locations.push_back(std::move(concreteLocation));
     }
 }
@@ -2059,6 +2121,7 @@ Bool ResourceRegistry::_ImportArchivePack(const String& resourceName, const Stri
         TTE_ASSERT(arc.SerialiseIn(archiveStream), "TTArchive serialise/read fail!");
         lck.lock();
         auto pLoc = TTE_NEW_PTR(ResourceConcreteLocation<RegistryDirectory_TTArchive>, MEMORY_TAG_RESOURCE_REGISTRY, archiveID, archivePhysicalPath, std::move(arc));
+        TTE_ATTACH_DBG_STR(pLoc.get(), "TTArchiveConcreteLocation:" + archiveID);
         _Locations.push_back(std::move(pLoc));
     }
     else if(resourceName == maskTTArch2)
@@ -2068,6 +2131,7 @@ Bool ResourceRegistry::_ImportArchivePack(const String& resourceName, const Stri
         TTE_ASSERT(arc.SerialiseIn(archiveStream), "TTArchive2 serialise/read fail!");
         lck.lock();
         auto pLoc = TTE_NEW_PTR(ResourceConcreteLocation<RegistryDirectory_TTArchive2>, MEMORY_TAG_RESOURCE_REGISTRY, archiveID, archivePhysicalPath, std::move(arc));
+        TTE_ATTACH_DBG_STR(pLoc.get(), "TTArchive2ConcreteLocation:" + archiveID);
         _Locations.push_back(std::move(pLoc));
     }
     else if(StringEndsWith(resourceName, ISO9660::Extension, false))
@@ -2082,6 +2146,7 @@ Bool ResourceRegistry::_ImportArchivePack(const String& resourceName, const Stri
         lck.lock();
         auto pLoc = TTE_NEW_PTR(ResourceConcreteLocation<RegistryDirectory_ISO9660>, 
                                 MEMORY_TAG_RESOURCE_REGISTRY, archiveID, archivePhysicalPath, std::move(iso));
+        TTE_ATTACH_DBG_STR(pLoc.get(), "ISOConcreteLocation:" + archiveID);
         _Locations.push_back(std::move(pLoc));
     }
     else if(StringEndsWith(resourceName, GamePack2::Extension, false))
@@ -2096,6 +2161,7 @@ Bool ResourceRegistry::_ImportArchivePack(const String& resourceName, const Stri
         lck.lock();
         auto pLoc = TTE_NEW_PTR(ResourceConcreteLocation<RegistryDirectory_GamePack2>, 
                                 MEMORY_TAG_RESOURCE_REGISTRY, archiveID, archivePhysicalPath, std::move(pk2));
+        TTE_ATTACH_DBG_STR(pLoc.get(), "GamePack2ConcreteLocation:" + archiveID);
         _Locations.push_back(std::move(pLoc));
     }
     else if(StringEndsWith(resourceName, PlaystationPKG::Extension, false))
@@ -2110,6 +2176,7 @@ Bool ResourceRegistry::_ImportArchivePack(const String& resourceName, const Stri
         lck.lock();
         auto pLoc = TTE_NEW_PTR(ResourceConcreteLocation<RegistryDirectory_PlaystationPKG>,
                                 MEMORY_TAG_RESOURCE_REGISTRY, archiveID, archivePhysicalPath, pkKey, std::move(pkg));
+        TTE_ATTACH_DBG_STR(pLoc.get(), "PSPKGConcreteLocation:" + archiveID);
         _Locations.push_back(std::move(pLoc));
     }
     else
@@ -2482,6 +2549,11 @@ void HandleObjectInfo::_OnUnload(ResourceRegistry &registry, std::unique_lock<st
     ;
 }
 
+Bool HandleBase::Exists(Ptr<ResourceRegistry>& registry)
+{
+    return _ResourceName ? registry->ResourceExists(_ResourceName) : false;
+}
+
 Bool HandleBase::IsLoaded(Ptr<ResourceRegistry> &registry)
 {
     return _ResourceName ? registry->_EnsureHandleLoadedLocked(*this, true) : false;
@@ -2528,8 +2600,7 @@ Bool ResourceRegistry::_SetupHandleResourceLoad(HandleObjectInfo &hoi, std::uniq
                 name = SymbolToHexString(hoi._ResourceName);
             if(_ErrorFiles.find(name) == _ErrorFiles.end())
             {
-                TTE_LOG("WARNING: The resource %s was not found in the "
-                        "resource registry so cannot be loaded! Empty placeholder will be used.", name.c_str());
+                TTE_LOG("WARNING: The resource %s was not found in the resource registry.", name.c_str());
                 _ErrorFiles.insert(name);
             }
             return false;
@@ -2802,6 +2873,11 @@ U32 ResourceRegistry::GetPreloadOffset()
 
 U32 ResourceRegistry::Preload(std::vector<HandleBase> &&resourceHandles, Bool bOverwrite)
 {
+    return PreloadWithCallback(std::move(resourceHandles), bOverwrite, {}, false, "*");
+}
+
+U32 ResourceRegistry::PreloadWithCallback(std::vector<HandleBase> &&resourceHandles, Bool bOverwrite, Ptr<FunctionBase> pCallback, Bool bPeriodic, String uMask)
+{
     SCOPE_LOCK();
     U32 numBatches = (U32)resourceHandles.size() / STATIC_PRELOAD_BATCH_SIZE;
     U32 remBatchNumResources = (U32)resourceHandles.size() % STATIC_PRELOAD_BATCH_SIZE;
@@ -2809,6 +2885,15 @@ U32 ResourceRegistry::Preload(std::vector<HandleBase> &&resourceHandles, Bool bO
     _PreloadSize += numBatches;
     if(remBatchNumResources)
         _PreloadSize++;
+    PreloadCallback callback{};
+    callback.Callback = pCallback;
+    if(pCallback)
+    {
+        callback.CalleeThread = std::this_thread::get_id();
+        callback.Resources.reserve(resourceHandles.size());
+        callback.CallbackLockToCalleeThread = bPeriodic ? 1 : 0;
+        callback.UpdateMask = std::move(uMask);
+    }
     for(U32 i = 0; i <= numBatches; i++)
     {
         U32 numResources = i == numBatches ? remBatchNumResources : STATIC_PRELOAD_BATCH_SIZE;
@@ -2824,6 +2909,10 @@ U32 ResourceRegistry::Preload(std::vector<HandleBase> &&resourceHandles, Bool bO
             HandleBase handle = resourceHandles.back();
             resourceHandles.pop_back();
             pJob->HOI[j]._ResourceName = handle._ResourceName;
+            if(pCallback)
+            {
+                callback.Resources.push_back(handle._ResourceName);
+            }
         }
         
         JobDescriptor J{};
@@ -2836,6 +2925,11 @@ U32 ResourceRegistry::Preload(std::vector<HandleBase> &&resourceHandles, Bool bO
         ref.Handle = JobScheduler::Instance->Post(J);
         ref.PreloadOffset = _PreloadSize; // all the same
         _PreloadJobs.push_back(std::move(ref));
+    }
+    callback.PreloadFence = _PreloadSize;
+    if(pCallback)
+    {
+        _PreloadCallbacks.push_back(std::move(callback));
     }
     return _PreloadSize;
 }
@@ -2856,9 +2950,16 @@ Bool _AsyncPerformPreloadBatchJob(const JobThread& thread, void* j, void*)
         for(U32 i = 0; i < job->NumResources; i++)
         {
             DataStreamRef unsafe = master->LocateResource(job->HOI[i]._ResourceName, nullptr); // need to read to buffer
-            DataStreamRef buffer = DataStreamManager::GetInstance()->CreateBufferStream("", unsafe->GetSize(), 0, 0);
-            DataStreamManager::GetInstance()->Transfer(unsafe, buffer, unsafe->GetSize());
-            Streams[i] = std::move(buffer);
+            if(!unsafe)
+            {
+                TTE_LOG("Could not open data stream for resource %s", SymbolTable::Find(job->HOI[i]._ResourceName).c_str());
+            }
+            else
+            {
+                DataStreamRef buffer = DataStreamManager::GetInstance()->CreateBufferStream("", unsafe->GetSize(), 0, 0);
+                DataStreamManager::GetInstance()->Transfer(unsafe, buffer, unsafe->GetSize());
+                Streams[i] = std::move(buffer);
+            }
         }
         job->Registry->_Guard.unlock();
     }
@@ -2955,6 +3056,7 @@ Bool _AsyncPerformPreloadBatchJob(const JobThread& thread, void* j, void*)
             }
         }
         job->Registry->_PreloadOffset++;
+        job->Registry->_AsyncProcessCallbacksUnlocked(nullptr);
     }
     
     if(nFailed)
@@ -2967,18 +3069,51 @@ Bool _AsyncPerformPreloadBatchJob(const JobThread& thread, void* j, void*)
     return true;
 }
 
-void ResourceRegistry::Update(Float budget)
+void ResourceRegistry::_AsyncProcessCallbacksUnlocked(CString masktest)
+{
+    if(!masktest)
+        masktest = "";
+    
+    SCOPE_LOCK();
+    std::thread::id myt = std::this_thread::get_id();
+    for(auto it = _PreloadCallbacks.begin(); it != _PreloadCallbacks.end();)
+    {
+        if(it->PreloadFence >= _PreloadOffset && (!it->CallbackLockToCalleeThread ||
+                it->CalleeThread == myt) && StringMask::MatchSearchMask(masktest, it->UpdateMask.c_str(), StringMask::MASKMODE_SIMPLE_MATCH))
+        {
+            const std::vector<Symbol>* pResources = &it->Resources;
+            it->Callback->CallErased(&pResources, 0, 0, 0, 0, 0, 0, 0);
+            it = _PreloadCallbacks.erase(it);
+            continue;
+        }
+        it++;
+    }
+}
+
+void ResourceRegistry::Update(Float budget, String uMaskTest)
 {
     U64 start = GetTimeStamp();
+    
+    // CALLBACKS
+    {
+        _AsyncProcessCallbacksUnlocked(uMaskTest.c_str());
+        if(GetTimeStampDifference(start, GetTimeStamp()) >= budget)
+            return;
+    }
+
+    if(!uMaskTest.empty() && uMaskTest != "*")
+    {
+        return; // only update the selected file if mask selected.
+    }
     
     // REMOVE UNUSED PRELOAD JOB REFS
     {
         SCOPE_LOCK();
-        for(auto it = _PreloadJobs.cbegin(); it != _PreloadJobs.end();)
+        for(auto it = _PreloadJobs.begin(); it != _PreloadJobs.end();)
         {
             if(it->PreloadOffset <= _PreloadOffset)
             {
-                _PreloadJobs.erase(it);
+                it = _PreloadJobs.erase(it);
             }else ++it;
         }
     }
@@ -3025,6 +3160,11 @@ void ResourceRegistry::WaitPreload(U32 preloadOffset)
     }
     if(handles.size())
         JobScheduler::Instance->Wait((U32)handles.size(), handles.data());
+    
+    // CALLBACKS
+    {
+        _AsyncProcessCallbacksUnlocked(nullptr);
+    }
 }
 
 void ResourceRegistry::_LocateResourceInternal(Symbol name, String* outName, DataStreamRef* outStream)
@@ -3109,7 +3249,7 @@ ResourceRegistry::~ResourceRegistry()
         {
             Handles[i] = JobScheduler::Instance->Post(desc, i);
         }
-        // should we wait?
+        JobScheduler::Instance->Wait(NUM_SCHEDULER_THREADS, Handles);
     }
 }
 
@@ -3188,18 +3328,43 @@ Ptr<ResourceRegistry> Handleable::GetRegistry() const
 void Meta::_Impl::_Coersion<Handle<Placeholder>>::Extract(Handle<Placeholder>& out, ClassInstance& inst)
 {
     ClassInstance mem = GetMember(inst, "mHandle", true); // mHandle must exist (It should in all games).
-    TTE_ASSERT(Is(mem, "Symbol") || Is(mem, "class Symbol"), "Handle<T>::mHandle is not a Symbol");
-    Symbol val{};
-    Meta::ExtractCoercableInstance(val, mem);
-    out.SetObject(val);
+    Bool isSymbol = Is(mem, "Symbol") || Is(mem, "class Symbol");
+    Bool isString = Is(mem, "String") || Is(mem, "class String");
+    TTE_ASSERT(isSymbol || isString, "Handle<T>::mHandle is not a Symbol or String");
+    if(isString)
+    {
+        String val{};
+        Meta::ExtractCoercableInstance(val, mem);
+        out.SetObject(val);
+    }
+    else
+    {
+        Symbol val{};
+        Meta::ExtractCoercableInstance(val, mem);
+        out.SetObject(val);
+    }
 }
 
 void Meta::_Impl::_Coersion<Handle<Placeholder>>::Import(const Handle<Placeholder>& in, ClassInstance& inst)
 {
     ClassInstance mem = GetMember(inst, "mHandle", true);
-    TTE_ASSERT(Is(mem, "Symbol") || Is(mem, "class Symbol"), "Handle<T>::mHandle is not a Symbol");
-    Symbol val = in.GetObject();
-    Meta::ImportCoercableInstance(val, mem);
+    Bool isSymbol = Is(mem, "Symbol") || Is(mem, "class Symbol");
+    Bool isString = Is(mem, "String") || Is(mem, "class String");
+    TTE_ASSERT(isSymbol || isString, "Handle<T>::mHandle is not a Symbol or String");
+    if(isSymbol)
+    {
+        Symbol val = in.GetObject();
+        Meta::ImportCoercableInstance(val, mem);
+    }
+    else
+    {
+        String val = in.GetObjectResolved();
+        if(in.GetObject().GetCRC64() != 0 && val.empty())
+        {
+            TTE_LOG("WARNING: When importing Handle<T> the file name could not be resolved, the hash is unknown: %llX", in.GetObject().GetCRC64());
+        }
+        Meta::ImportCoercableInstance(val, mem);
+    }
 }
 
 void Meta::_Impl::_Coersion<Handle<Placeholder>>::ImportLua(const Handle<Placeholder>& in, LuaManager& man)

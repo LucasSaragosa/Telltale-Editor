@@ -397,9 +397,20 @@
 #include <SDL3/SDL_video.h>
 
 #include <SDL3/SDL_begin_code.h>
+
 #ifdef __cplusplus
+
 extern "C" {
+
 #endif /* __cplusplus */
+
+typedef struct SDL_TelltaleEditorPatch
+{
+    Uint32 CreateBufferCall_NumElements;
+    Uint32 CreateBufferCall_Stride;
+} SDL_TelltaleEditorPatch;
+
+extern struct SDL_TelltaleEditorPatch _TTEPatches; // SDL_gpu.c
 
 /* Type Declarations */
 

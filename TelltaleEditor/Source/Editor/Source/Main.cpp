@@ -2,7 +2,7 @@
 #include <UI/ApplicationUI.hpp>
 
 // Run full application
-I32 CommandLine::Executor_Editor(const std::vector<TaskArgument>& args)
+static I32 Executor_Editor(const std::vector<CommandLine::TaskArgument>& args)
 {
     ApplicationUI App{};
     return App.Run(args);
@@ -10,7 +10,7 @@ I32 CommandLine::Executor_Editor(const std::vector<TaskArgument>& args)
 
 int main(int argc, char** argv)
 {
-    int exit = CommandLine::GuardedMain(argc, argv);
+    int exit = CommandLine::GuardedMain(argc, argv, &Executor_Editor);
 #ifdef DEBUG
     Memory::DumpTrackedMemory();
 #endif

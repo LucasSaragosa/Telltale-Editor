@@ -83,6 +83,29 @@ I32 LuaAdapter_514::UpvalueIndex(I32 index){
     return lua_upvalueindex(index);
 }
 
+void LuaAdapter_514::PrintStackTrace()
+{
+    lua_State* L = _State;
+
+    TTE_LOG("== Lua 5.1.4 Stack Trace:");
+
+    lua_Debug ar{};
+    int level = 0;
+    while (lua_getstack(L, level, &ar))
+    {
+        if (lua_getinfo(L, "nSl", &ar))
+        {
+            const char* funcName = ar.name ? ar.name : "<??>";
+            const char* source = ar.short_src ? ar.short_src : "<??.lua>";
+            int currentline = ar.currentline;
+            TTE_LOG("== %s at %s:%d [%d]", funcName, source, currentline <= 0 ? 0 : currentline, level);
+        }
+        ++level;
+    }
+
+    TTE_LOG("========================");
+}
+
 void LuaAdapter_514::CallFunction(U32 Nargs, U32 Nresults)
 {
     int error = lua_pcall(_State, Nargs, Nresults, 0);

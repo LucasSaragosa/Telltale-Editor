@@ -8,6 +8,16 @@
 
 #include <Scripting/ScriptManager.hpp>
 
+// for callbacks attached with objects which may need to have a fence keepalive
+enum class MethodLockType
+{
+    NONE = 0,
+    RAW = 1,
+    LOCKED = 2,
+    LOCKED_ERASED = 3, // type erased other object for aliveness
+};
+
+
 // ===================================================================         BASE
 // ===================================================================
 
@@ -27,7 +37,12 @@ struct FunctionBase
     // Comparison
     virtual Bool Equals(const FunctionBase& rhs) const = 0;
     
+    // If expired (eg weak ptr to method obj)
+    virtual Bool Expired() const = 0;
+    
     virtual U32 GetNumArguments() const = 0;
+
+    virtual MethodLockType GetMethodLockType() const = 0; // this is NONE for non method callbacks
     
     virtual ~FunctionBase() = default;
     
@@ -43,14 +58,37 @@ class Callbacks
     Ptr<FunctionBase> _Cbs;
     
 public:
+
+    inline void CallErasedNoArguments()
+    {
+        CallErased(0, 0, 0, 0, 0, 0, 0, 0);
+    }
     
     inline void CallErased(void* pArg1, U32 classArg1, void* pArg2, U32 classArg2, void* pArg3, U32 classArg3, void* Arg4, U32 classArg4)
     {
-        Ptr<FunctionBase> fn = _Cbs;
-        while(fn)
+        // Call and purge any expired callbacks
+        Ptr<FunctionBase> fn = _Cbs, prev = {};
+        while (fn)
         {
-            fn->CallErased(pArg1, classArg1, pArg2, classArg2, pArg3, classArg3, Arg4, classArg4);
-            fn = fn->Next;
+            if(fn->Expired())
+            {
+                if(fn == _Cbs)
+                {
+                    fn = _Cbs = fn->Next;
+                }
+                else
+                {
+                    if(prev)
+                        prev->Next = fn->Next;
+                    fn = fn->Next;
+                }
+            }
+            else
+            {
+                prev = fn;
+                fn->CallErased(pArg1, classArg1, pArg2, classArg2, pArg3, classArg3, Arg4, classArg4);
+                fn = fn->Next;
+            }
         }
     }
     
@@ -112,6 +150,10 @@ struct FunctionDummyImpl : FunctionBase
     
     inline virtual U32 GetNumArguments() const override { return 0; }
     
+    inline virtual Bool Expired() const override { return false; }
+
+    inline virtual MethodLockType GetMethodLockType() const override { return MethodLockType::NONE; }
+    
     inline virtual ~FunctionDummyImpl() {}
     
 };
@@ -149,6 +191,13 @@ struct LuaFunctionImpl : FunctionBase
             man.Pop(1);
         }
     }
+    
+    inline virtual Bool Expired() const override
+    {
+        return ManagerRef.Expired();
+    }
+
+    inline virtual MethodLockType GetMethodLockType() const override { return MethodLockType::NONE; }
     
     // Set the function by stack index
     inline void SetFunction(I32 stackIndex)
@@ -202,10 +251,10 @@ struct LuaFunctionImpl : FunctionBase
             return;
         }
         LuaManager& man = ManagerRef.Get();
-        if(NumArgs >= 1) TTE_ASSERT(pArg1, "Argument 1 not provided");
-        if(NumArgs >= 2) TTE_ASSERT(pArg2, "Argument 2 not provided");
-        if(NumArgs >= 3) TTE_ASSERT(pArg3, "Argument 3 not provided");
-        if(NumArgs == 4) TTE_ASSERT(pArg4, "Argument 4 not provided");
+        if(NumArgs >= 1) TTE_ASSERT(pArg1 && classArg1, "Argument 1 not provided");
+        if(NumArgs >= 2) TTE_ASSERT(pArg2 && classArg2, "Argument 2 not provided");
+        if(NumArgs >= 3) TTE_ASSERT(pArg3 && classArg3, "Argument 3 not provided");
+        if(NumArgs == 4) TTE_ASSERT(pArg4 && classArg4, "Argument 4 not provided");
         if(RegistryIndex != -1)
         {
             man.GetReg(RegistryIndex);
@@ -247,8 +296,101 @@ using LuaFunction = LuaFunctionImpl<NumArguments>;
 
 // ===================================================================         METHOD (CLASS ATTACHED)
 // ===================================================================
+// fence for validity of callback is delegated to another type erased object. the pair is contained here
+template<typename Object>
+struct MethodDecoupledLockedFence
+{
 
-template<typename Object, Bool Checked>
+    Object* RawObject;
+    WeakPtr<void> Fence;
+
+    inline MethodDecoupledLockedFence(Object* pObject, WeakPtr<void> wk) : RawObject(pObject), Fence(std::move(wk)) {}
+
+};
+
+template<typename Object, MethodLockType /*= LOCKED */>
+class MethodImplBase : public FunctionBase
+{
+protected:
+    
+    WeakPtr<Object> _MethodObject;
+
+public:
+
+    static constexpr MethodLockType MyLockType = MethodLockType::LOCKED;
+
+    inline MethodImplBase(Ptr<Object> pObject) : _MethodObject(pObject) {}
+
+    inline Bool CompareBase(const MethodImplBase& rhs) const
+    {
+        return _MethodObject.lock() == rhs._MethodObject.lock();
+    }
+    
+    inline virtual Bool Expired() const override
+    {
+        return _MethodObject.expired();
+    }
+
+    inline virtual MethodLockType GetMethodLockType() const override { return MyLockType; }
+    
+};
+
+template<typename Object>
+class MethodImplBase<Object, MethodLockType::LOCKED_ERASED> : public FunctionBase
+{
+protected:
+
+    MethodDecoupledLockedFence<Object> _MethodObject;
+
+public:
+
+    static constexpr MethodLockType MyLockType = MethodLockType::LOCKED_ERASED;
+
+    inline MethodImplBase(MethodDecoupledLockedFence<Object> obj) : _MethodObject(std::move(obj)) {}
+
+    inline Bool CompareBase(const MethodImplBase& rhs) const
+    {
+        return _MethodObject.RawObject == rhs._MethodObject.RawObject; // just compare underlying object
+    }
+
+    inline virtual Bool Expired() const override
+    {
+        return _MethodObject.Fence.expired();
+    }
+
+    inline virtual MethodLockType GetMethodLockType() const override { return MyLockType; }
+
+};
+
+template<typename Object>
+class MethodImplBase<Object, MethodLockType::RAW> : public FunctionBase
+{
+protected:
+
+    Object* _MethodObject;
+
+public:
+
+    static constexpr MethodLockType MyLockType = MethodLockType::RAW;
+
+    inline MethodImplBase(Object* pObject) : _MethodObject(pObject) {}
+
+    inline Bool CompareBase(const MethodImplBase& rhs) const
+    {
+        return _MethodObject == rhs._MethodObject;
+    }
+    
+    inline virtual Bool Expired() const override
+    {
+        return false; // raw ptr
+    }
+
+    inline virtual MethodLockType GetMethodLockType() const override { return MyLockType; }
+
+};
+
+// LOCKED
+template<typename Object, MethodLockType Ty>
 struct MethodLock
 {
 
@@ -258,9 +400,9 @@ struct MethodLock
     {
         if (!IsWeakPtrUnbound(wk))
         {
-            if(wk.expired())
+            if (wk.expired())
             {
-                TTE_LOG("WARNING: Method object has expired for unchecked MethodImplBase<TObj>");
+                MyObject = nullptr;
             }
             else
             {
@@ -269,89 +411,106 @@ struct MethodLock
         }
     }
 
+    inline operator Bool() const
+    {
+        return MyObject.use_count() > 0;
+    }
+
     ~MethodLock() = default;
 
 };
 
 template<typename T>
-struct MethodLock<T, false>
+struct MethodLock<T, MethodLockType::RAW>
 {
+
     inline MethodLock(T*) {}
+
+    inline operator Bool() const
+    {
+        return true;
+    }
+
 };
 
-template<typename Object, Bool Checked = true>
-class MethodImplBase : public FunctionBase
+template<typename T>
+struct MethodLock<T, MethodLockType::LOCKED_ERASED>
 {
-protected:
-    
-    WeakPtr<Object> _MethodObject;
 
-public:
+    Ptr<void> AcquiredFence;
 
-    static constexpr Bool MyChecked = true;
-
-    inline MethodImplBase(Ptr<Object> pObject) : _MethodObject(pObject) {}
-
-    inline MethodImplBase(Object* pObject) : _MethodObject()
+    inline MethodLock(const MethodDecoupledLockedFence<T>& object)
     {
-        TTE_ASSERT(false, "Incorrect constructor used! Please check the macro invocation.");
+        if (!IsWeakPtrUnbound(object.Fence))
+        {
+            if (object.Fence.expired())
+            {
+                TTE_LOG("WARNING: Method type-erased fence object has expired for unchecked MethodImplBase<TObj>");
+                AcquiredFence = nullptr;
+            }
+            else
+            {
+                AcquiredFence = object.Fence.lock();
+            }
+        }
     }
 
-    inline Bool CompareBase(const MethodImplBase& rhs) const
+    inline operator Bool() const
     {
-        return _MethodObject.lock() == rhs._MethodObject.lock();
-    }
-    
-};
-
-template<typename Object>
-class MethodImplBase<Object, false> : public FunctionBase
-{
-protected:
-
-    Object* _MethodObject;
-
-public:
-
-    static constexpr Bool MyChecked = false;
-
-    inline MethodImplBase(Object* pObject) : _MethodObject(pObject)
-    {
+        return AcquiredFence.use_count() > 0;
     }
 
-    inline MethodImplBase(Ptr<Object> pObject) : _MethodObject(pObject.get())
-    {
-    }
-
-    inline Bool CompareBase(const MethodImplBase& rhs) const
-    {
-        return _MethodObject == rhs._MethodObject;
-    }
+    ~MethodLock() = default;
 
 };
 
 template<typename Object>
 struct _MethodImplBaseSelector
 {
-    static constexpr Bool _MyChecked = false;
+    static constexpr MethodLockType _MyType = MethodLockType::RAW;
 };
 
 template<typename Object>
 struct _MethodImplBaseSelector<Ptr<Object>>
 {
-    static constexpr Bool _MyChecked = true;
+    static constexpr MethodLockType _MyType = MethodLockType::LOCKED;
 };
 
-#define CALLBACK_TEST_CHECKED(PtrObj) _MethodImplBaseSelector<std::decay<decltype(PtrObj)>::type>::_MyChecked
+template<typename Object>
+struct _MethodImplBaseSelector<MethodDecoupledLockedFence<Object>>
+{
+    static constexpr MethodLockType _MyType = MethodLockType::LOCKED_ERASED;
+};
 
-template<typename Object, Bool Checked, typename Arg1 = Placeholder, typename Arg2 = Placeholder, typename Arg3 = Placeholder, typename Arg4 = Placeholder>
+#define CALLBACK_TEST_CHECKED(PtrObj) _MethodImplBaseSelector<typename std::remove_pointer<typename std::decay<decltype(PtrObj)>::type>::type>::_MyType
+
+template <typename T>
+struct _MethodFnTraits;
+
+//  R (Cls::*)(Arg)
+template <typename Cls, typename Arg, typename R>
+struct _MethodFnTraits<R(Cls::*)(Arg)> 
+{
+    using _Clz = Cls;
+    using _ArgT = Arg;
+};
+
+// R (Cls::*)(Arg) const
+template <typename Cls, typename Arg, typename R>
+struct _MethodFnTraits<R(Cls::*)(Arg) const> 
+{
+    using _Clz = Cls;
+    using _ArgT = Arg;
+};
+
+template<typename Object, MethodLockType LTy, typename Arg1 = Placeholder, typename Arg2 = Placeholder, typename Arg3 = Placeholder, typename Arg4 = Placeholder>
 struct MethodImpl;
 
-template<typename Object, Bool Checked> // 0 ARGS
-struct MethodImpl<Object, Checked, Placeholder, Placeholder, Placeholder, Placeholder> : MethodImplBase<Object, Checked>
+template<typename Object, MethodLockType LTy> // 0 ARGS
+struct MethodImpl<Object, LTy, Placeholder, Placeholder, Placeholder, Placeholder> : MethodImplBase<Object, LTy>
 {
 
-    using _MethodImplBase = MethodImplBase<Object, Checked>;
+    using _MethodImplBase = MethodImplBase<Object, LTy>;
     
     fastdelegate::FastDelegate0<> Delegate;
     
@@ -387,24 +546,29 @@ struct MethodImpl<Object, Checked, Placeholder, Placeholder, Placeholder, Placeh
     {
         Delegate.bind(pObject, pMethod);
     }
+
+    inline MethodImpl(MethodDecoupledLockedFence<Object> object, void (Object::* pMethod)()) : _MethodImplBase(object)
+    {
+        Delegate.bind(object.RawObject, pMethod);
+    }
     
 protected:
     
     inline void Call()
     {
-        MethodLock<Object, Checked> _Lock{ this->_MethodObject };
-        Delegate();
+        MethodLock<Object, LTy> _Lock{ this->_MethodObject };
+        if (_Lock) Delegate();
     }
     
 };
 
-template<typename Object, Bool Checked, typename Arg1> // 1 ARG
-struct MethodImpl<Object, Checked, Arg1, Placeholder, Placeholder, Placeholder> : MethodImplBase<Object, Checked>
+template<typename Object, MethodLockType LTy, typename Arg1> // 1 ARG
+struct MethodImpl<Object, LTy, Arg1, Placeholder, Placeholder, Placeholder> : MethodImplBase<Object, LTy>
 {
 
     CALLBACK_ARGUMENT_ASSERT_NOENUM(Arg1);
     
-    using _MethodImplBase = MethodImplBase<Object, Checked>;
+    using _MethodImplBase = MethodImplBase<Object, LTy>;
     
     fastdelegate::FastDelegate1<Arg1> Delegate;
     
@@ -443,6 +607,11 @@ struct MethodImpl<Object, Checked, Arg1, Placeholder, Placeholder, Placeholder> 
         Delegate.bind(pObject.get(), pMethod);
     }
 
+    inline MethodImpl(MethodDecoupledLockedFence<Object> object, void (Object::* pMethod)(Arg1)) : _MethodImplBase(object)
+    {
+        Delegate.bind(object.RawObject, pMethod);
+    }
+
     inline MethodImpl(Object* pObject, void (Object::* pMethod)(Arg1)) : _MethodImplBase(pObject)
     {
         Delegate.bind(pObject, pMethod);
@@ -452,20 +621,20 @@ protected:
     
     inline void Call(Arg1 arg1)
     {
-        MethodLock<Object, Checked> _Lock{this->_MethodObject};
-        Delegate(std::move(arg1));
+        MethodLock<Object, LTy> _Lock{this->_MethodObject};
+        if(_Lock) Delegate(std::move(arg1));
     }
     
 };
 
-template<typename Object, Bool Checked, typename Arg1, typename Arg2> // 2 ARGS
-struct MethodImpl<Object, Checked, Arg1, Arg2, Placeholder, Placeholder> : MethodImplBase<Object, Checked>
+template<typename Object, MethodLockType LTy, typename Arg1, typename Arg2> // 2 ARGS
+struct MethodImpl<Object, LTy, Arg1, Arg2, Placeholder, Placeholder> : MethodImplBase<Object, LTy>
 {
 
     CALLBACK_ARGUMENT_ASSERT_NOENUM(Arg1);
     CALLBACK_ARGUMENT_ASSERT_NOENUM(Arg2);
     
-    using _MethodImplBase = MethodImplBase<Object, Checked>;
+    using _MethodImplBase = MethodImplBase<Object, LTy>;
     
     fastdelegate::FastDelegate2<Arg1, Arg2> Delegate;
     
@@ -510,26 +679,31 @@ struct MethodImpl<Object, Checked, Arg1, Arg2, Placeholder, Placeholder> : Metho
     {
         Delegate.bind(pObject, pMethod);
     }
+
+    inline MethodImpl(MethodDecoupledLockedFence<Object> object, void (Object::* pMethod)(Arg1,Arg2)) : _MethodImplBase(object)
+    {
+        Delegate.bind(object.RawObject, pMethod);
+    }
     
 protected:
     
     inline void Call(Arg1 arg1, Arg2 arg2)
     {
-        MethodLock<Object, Checked> _Lock{ this->_MethodObject };
-        Delegate(std::move(arg1), std::move(arg2));
+        MethodLock<Object, LTy> _Lock{ this->_MethodObject };
+        if (_Lock) Delegate(std::move(arg1), std::move(arg2));
     }
     
 };
 
-template<typename Object, Bool Checked, typename Arg1, typename Arg2, typename Arg3> // 3 ARGS
-struct MethodImpl<Object, Checked, Arg1, Arg2, Arg3, Placeholder> : MethodImplBase<Object, Checked>
+template<typename Object, MethodLockType LTy, typename Arg1, typename Arg2, typename Arg3> // 3 ARGS
+struct MethodImpl<Object, LTy, Arg1, Arg2, Arg3, Placeholder> : MethodImplBase<Object, LTy>
 {
 
     CALLBACK_ARGUMENT_ASSERT_NOENUM(Arg1);
     CALLBACK_ARGUMENT_ASSERT_NOENUM(Arg2);
     CALLBACK_ARGUMENT_ASSERT_NOENUM(Arg3);
     
-    using _MethodImplBase = MethodImplBase<Object, Checked>;
+    using _MethodImplBase = MethodImplBase<Object, LTy>;
     
     fastdelegate::FastDelegate3<Arg1, Arg2, Arg3> Delegate;
     
@@ -575,19 +749,24 @@ struct MethodImpl<Object, Checked, Arg1, Arg2, Arg3, Placeholder> : MethodImplBa
     {
         Delegate.bind(pObject, pMethod);
     }
+
+    inline MethodImpl(MethodDecoupledLockedFence<Object> object, void (Object::* pMethod)(Arg1,Arg2,Arg3)) : _MethodImplBase(object)
+    {
+        Delegate.bind(object.RawObject, pMethod);
+    }
     
 protected:
     
     inline void Call(Arg1 arg1, Arg2 arg2, Arg3 arg3)
     {
-        MethodLock<Object, Checked> _Lock{ this->_MethodObject };
-        Delegate(std::move(arg1), std::move(arg2), std::move(arg3));
+        MethodLock<Object, LTy> _Lock{ this->_MethodObject };
+        if (_Lock) Delegate(std::move(arg1), std::move(arg2), std::move(arg3));
     }
     
 };
 
-template<typename Object, Bool Checked, typename Arg1, typename Arg2, typename Arg3, typename Arg4> // 4 ARGS
-struct MethodImpl : MethodImplBase<Object, Checked>
+template<typename Object, MethodLockType LTy, typename Arg1, typename Arg2, typename Arg3, typename Arg4> // 4 ARGS
+struct MethodImpl : MethodImplBase<Object, LTy>
 {
 
     CALLBACK_ARGUMENT_ASSERT_NOENUM(Arg1);
@@ -595,7 +774,7 @@ struct MethodImpl : MethodImplBase<Object, Checked>
     CALLBACK_ARGUMENT_ASSERT_NOENUM(Arg3);
     CALLBACK_ARGUMENT_ASSERT_NOENUM(Arg4);
     
-    using _MethodImplBase = MethodImplBase<Object, Checked>;
+    using _MethodImplBase = MethodImplBase<Object, LTy>;
     
     fastdelegate::FastDelegate4<Arg1, Arg2, Arg3, Arg4> Delegate;
     
@@ -648,20 +827,25 @@ struct MethodImpl : MethodImplBase<Object, Checked>
     {
         Delegate.bind(pObject, pMethod);
     }
+
+    inline MethodImpl(MethodDecoupledLockedFence<Object> object, void (Object::* pMethod)(Arg1,Arg2,Arg3,Arg4)) : _MethodImplBase(object)
+    {
+        Delegate.bind(object.RawObject, pMethod);
+    }
     
 protected:
     
     inline void Call(Arg1 arg1, Arg2 arg2, Arg3 arg3, Arg4 arg4)
     {
-        MethodLock<Object, Checked> _Lock{ this->_MethodObject };
-        Delegate(std::move(arg1), std::move(arg2), std::move(arg3), std::move(arg4));
+        MethodLock<Object, LTy> _Lock{ this->_MethodObject };
+        if (_Lock) Delegate(std::move(arg1), std::move(arg2), std::move(arg3), std::move(arg4));
     }
     
 };
 
 // Meta system args bound -> a C++ instance. Member function
-template<typename Object, Bool Checked, typename A1 = Placeholder, typename A2 = Placeholder, typename A3 = Placeholder, typename A4 = Placeholder>
-using Method = MethodImpl<Object, Checked, A1, A2, A3, A4>;
+template<typename Object, MethodLockType LockType, typename A1 = Placeholder, typename A2 = Placeholder, typename A3 = Placeholder, typename A4 = Placeholder>
+using Method = MethodImpl<Object, LockType, A1, A2, A3, A4>;
 
 // ===================================================================         FUNCTION (NO CLASS ATTACH)
 // ===================================================================
@@ -945,6 +1129,8 @@ using Function = FunctionImpl<A1, A2, A3, A4>;
 // Annoying fix to be able to pass types with commas in them into macros by wrapping in function as its argument.
 template<typename T> struct _TemplArgFnWrapper;
 template<typename T, typename U> struct _TemplArgFnWrapper<T(U)> { typedef U _FTy; };
+
+#define CALLBACK_DECOUPLED(RawPtr, WeakObj) MethodDecoupledLockedFence<typename std::remove_pointer<typename std::decay<decltype(RawPtr)>::type>::type>(RawPtr, WeakObj)
 
 #define ALLOCATE_LUA_CALLBACK(NumArgs, Manager) TTE_NEW_PTR(LuaFunction<NumArgs>, MEMORY_TAG_CALLBACK, Manager)
 

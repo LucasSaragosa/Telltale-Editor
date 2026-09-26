@@ -25,6 +25,7 @@
 #include <thread>
 #include <atomic>
 #include <random>
+#include <thread>
 
 // folders excluded from disk unless explicitly mounted when recursively going through directories
 #define EXCLUDE_SYSTEM_FILTER "!*.DS_Store;!*.app/*"
@@ -98,17 +99,19 @@ protected:
     
     Symbol _ResourceName;
     
-    inline HandleBase(Symbol rn) : _ResourceName(rn) {}
-    
     void _SetObject(Ptr<ResourceRegistry>& registry, Symbol name, Bool bUnloadOld, Bool bEnsureLoaded);
     
 public:
     
+    inline HandleBase(Symbol rn) : _ResourceName(rn) {}
+
     HandleBase() = default;
     
     Bool IsLoaded(Ptr<ResourceRegistry>& registry); // return if its currently loaded. Will return false if there is a future load in progress which hasn't been progressed
     
     void EnsureIsLoaded(Ptr<ResourceRegistry>& registry); // ensure this handle is currently loaded, the latest load
+
+    Bool Exists(Ptr<ResourceRegistry>& registry); // if this resource exists
     
     // sets object file (eg a .d3dmesh). Specify to unload old resource, and if you want to ensure its loaded.
     template<typename T>
@@ -134,8 +137,10 @@ public:
         return SymbolTable::Find(_ResourceName);
     }
     
-    inline Ptr<Handleable> GetBlindObject(Ptr<ResourceRegistry>& registry)
+    inline Ptr<Handleable> GetBlindObject(Ptr<ResourceRegistry> registry, Bool bEnsureLoaded)
     {
+        if (bEnsureLoaded)
+            EnsureIsLoaded(registry);
         return _GetObject(registry, nullptr);
     }
     
@@ -265,6 +270,11 @@ public:
     {
         return HandleBase::IsLoaded(registry);
     }
+
+    inline Bool Exists(Ptr<ResourceRegistry>& registry)
+    {
+        return HandleBase::Exists(registry);
+    }
     
     inline Symbol GetObject() const
     {
@@ -310,18 +320,43 @@ namespace Meta::_Impl
         static inline void Extract(Handle<T>& out, ClassInstance& inst)
         {
             ClassInstance mem = GetMember(inst, "mHandle", true); // mHandle must exist (It should in all games).
-            TTE_ASSERT(Is(mem, "Symbol") || Is(mem, "class Symbol"), "Handle<T>::mHandle is not a Symbol");
-            Symbol val{};
-            Meta::ExtractCoercableInstance(val, mem);
-            out.SetObject(val);
+            Bool isSymbol = Is(mem, "Symbol") || Is(mem, "class Symbol");
+            Bool isString = Is(mem, "String") || Is(mem, "class String");
+            TTE_ASSERT(isSymbol || isString, "Handle<T>::mHandle is not a Symbol or String");
+            if (isString)
+            {
+                String val{};
+                Meta::ExtractCoercableInstance(val, mem);
+                out.SetObject(val);
+            }
+            else
+            {
+                Symbol val{};
+                Meta::ExtractCoercableInstance(val, mem);
+                out.SetObject(val);
+            }
         }
         
         static inline void Import(const Handle<T>& in, ClassInstance& inst)
         {
             ClassInstance mem = GetMember(inst, "mHandle", true);
-            TTE_ASSERT(Is(mem, "Symbol") || Is(mem, "class Symbol"), "Handle<T>::mHandle is not a Symbol");
-            Symbol val = in.GetObject();
-            Meta::ImportCoercableInstance(val, mem);
+            Bool isSymbol = Is(mem, "Symbol") || Is(mem, "class Symbol");
+            Bool isString = Is(mem, "String") || Is(mem, "class String");
+            TTE_ASSERT(isSymbol || isString, "Handle<T>::mHandle is not a Symbol or String");
+            if (isSymbol)
+            {
+                Symbol val = in.GetObject();
+                Meta::ImportCoercableInstance(val, mem);
+            }
+            else
+            {
+                String val = in.GetObjectResolved();
+                if (in.GetObject().GetCRC64() != 0 && val.empty())
+                {
+                    TTE_LOG("WARNING: When importing Handle<T> the file name could not be resolved, the hash is unknown: %llX", in.GetObject().GetCRC64());
+                }
+                Meta::ImportCoercableInstance(val, mem);
+            }
         }
         
         static inline void ImportLua(const Handle<T>& in, LuaManager& man)
@@ -439,6 +474,7 @@ public:
     virtual Bool CopyResource(const Symbol& srcResourceName, const String& dstResourceNameStr) = 0;
     virtual DataStreamRef OpenResource(const Symbol& resourceName, String* outName) = 0; // optional outName to get resource name from symbol (we want to support that)
     virtual void RefreshResources() = 0;
+    virtual Bool IsEmpty() = 0;
     
     // Opens a sub-directory inside this directory
     virtual Ptr<RegistryDirectory> OpenDirectory(const String& name) = 0;
@@ -499,6 +535,7 @@ public:
     virtual Bool CopyResource(const Symbol& srcResourceName, const String& dstResourceNameStr); // copy resource to dest
     virtual DataStreamRef OpenResource(const Symbol& resourceName, String* outName); // open resource
     virtual void RefreshResources();
+    virtual Bool IsEmpty();
     
     virtual Ptr<RegistryDirectory> OpenDirectory(const String& name);
     
@@ -541,6 +578,7 @@ public:
     virtual Bool CopyResource(const Symbol& srcResourceName, const String& dstResourceNameStr); // copy resource to dest
     virtual DataStreamRef OpenResource(const Symbol& resourceName, String* outName); // open resource
     virtual void RefreshResources(); // refresh
+    virtual Bool IsEmpty();
     
     Bool UpdateArchiveInternal(const String& resourceName, Ptr<ResourceLocation>& location, std::unique_lock<std::recursive_mutex>& lck); // update from resource syss
     
@@ -580,6 +618,7 @@ public:
     virtual Bool CopyResource(const Symbol& srcResourceName, const String& dstResourceNameStr); // copy resource to dest
     virtual DataStreamRef OpenResource(const Symbol& resourceName,String* outName); // open resource
     virtual void RefreshResources(); // refresh
+    virtual Bool IsEmpty();
     
     Bool UpdateArchiveInternal(const String& resourceName, Ptr<ResourceLocation>& location, std::unique_lock<std::recursive_mutex>& lck); // update from resource sys
     
@@ -619,6 +658,7 @@ public:
     virtual Bool CopyResource(const Symbol& srcResourceName, const String& dstResourceNameStr); // copy resource to dest
     virtual DataStreamRef OpenResource(const Symbol& resourceName,String* outName); // open resource
     virtual void RefreshResources(); // refresh
+    virtual Bool IsEmpty();
     
     Bool UpdateArchiveInternal(const String& resourceName, Ptr<ResourceLocation>& location, std::unique_lock<std::recursive_mutex>& lck); // update from resource sys
     
@@ -658,6 +698,7 @@ public:
     virtual Bool CopyResource(const Symbol& srcResourceName, const String& dstResourceNameStr); // copy resource to dest
     virtual DataStreamRef OpenResource(const Symbol& resourceName,String* outName); // open resource
     virtual void RefreshResources(); // refresh
+    virtual Bool IsEmpty();
     
     Bool UpdateArchiveInternal(const String& resourceName, Ptr<ResourceLocation>& location, std::unique_lock<std::recursive_mutex>& lck); // update from resource sys
     
@@ -698,6 +739,7 @@ public:
     virtual Bool CopyResource(const Symbol& srcResourceName, const String& dstResourceNameStr); // copy resource to dest
     virtual DataStreamRef OpenResource(const Symbol& resourceName,String* outName); // open resource
     virtual void RefreshResources(); // refresh
+    virtual Bool IsEmpty();
     
     Bool UpdateArchiveInternal(const String& resourceName, Ptr<ResourceLocation>& location, std::unique_lock<std::recursive_mutex>& lck); // update from resource sys
     
@@ -733,6 +775,8 @@ struct ResourceLocation
     virtual DataStreamRef LocateResource(const Symbol& name, String* outName) = 0;
     
     virtual Bool HasResource(const Symbol& name) = 0;
+
+    virtual Bool IsEmpty() = 0;
     
     virtual String GetPhysicalPath() = 0; // get physical path if this is a system directory
     
@@ -771,6 +815,8 @@ struct ResourceLogicalLocation : ResourceLocation
     virtual DataStreamRef LocateResource(const Symbol& name, String* outName);
     
     virtual Bool HasResource(const Symbol& name);
+
+    virtual Bool IsEmpty();
     
     virtual RegistryDirectory* LocateConcreteDirectory(const Symbol& resourceName);
     
@@ -822,6 +868,11 @@ struct ResourceConcreteLocation : ResourceLocation
     {
         return Directory.HasResource(name, nullptr);
     }
+
+    inline Bool IsEmpty() override
+    {
+        return Directory.IsEmpty();
+    }
     
     inline String GetPhysicalPath() override
     {
@@ -863,6 +914,18 @@ struct PreloadBatchJobRef // internal waitable batch job ref
     
 };
 
+struct FunctionBase;
+
+struct PreloadCallback
+{
+    U32 PreloadFence;
+    U32 CallbackLockToCalleeThread = 0;
+    Ptr<FunctionBase> Callback;
+    std::vector<Symbol> Resources;
+    std::thread::id CalleeThread;
+    String UpdateMask;
+};
+
 Bool _AsyncPerformPreloadBatchJob(const JobThread& thread, void* job, void*);
 
 // ================================================== RESOURCE REGISTRY MAIN CLASS ==================================================
@@ -895,8 +958,10 @@ public:
     /**
      Updates the resource registry. If any resource unloads are deferred they will happen here. Doesn't need to be called if you have not explicitly said to defer or preload anything.
      Pass in the time budget you want to maximum spend on this function such that anything not done will get done next call. In seconds.
+     Optionally pass in the update ID as to which non lock-to-thread callbacks to execute, empty does all but you can provide a different one such that uMask in a PreloadWithCallback
+     call has to match updateId for it to be processed.
      */
-    void Update(Float timeBudget);
+    void Update(Float timeBudget, String updateId = "");
     
     /**
      THIS MUST BE CALLED FROM THE MAIN THREAD. LUA ENVIRONMENT USED IS THE GAMES' ONE!
@@ -1070,6 +1135,9 @@ public:
     
     // Gets all resource names which match the optional mask, else all. Specify the resource location to search in.
     void GetLocationResourceNames(const Symbol& location, std::set<String>& outNames, const StringMask* optionalMask);
+
+    // Returns whether the given resource location is empty, ie has no resources within it.
+    Bool IsLocationEmpty(const Symbol& location);
     
     // Returns true if the given resource exists on file or in cache
     Bool ResourceExists(const Symbol& resourceName);
@@ -1105,6 +1173,11 @@ public:
     // Set overwrite to true to overwrite any existing resources which may be loaded when inserting.
     U32 Preload(std::vector<HandleBase>&& resourceHandles, Bool bOverwrite);
     
+    // See Preload(). Preload but with a callback, in which a vector of symbols is passed (the resource names), as a const std::vector<Symbol>*!! POINTER!
+    // Specify to lock the callback to only be called on the thread which calls this. In this case, you need to periodically call Update on this thread.
+    // Also specify a mask (default *) in which that must be passed into ResourceRegistry::Update to process your callback, for finer control.
+    U32 PreloadWithCallback(std::vector<HandleBase>&& resourceHandles, Bool bOverwrite, Ptr<FunctionBase> pCallback, Bool bLockCallbackToCalleeThread, String uMask);
+    
     // Preload offset. If bigger or equal to a return value of a previous Preload(), you can ensure all of those handles have loaded.
     U32 GetPreloadOffset();
     
@@ -1129,6 +1202,7 @@ public:
         return _CreateCachedResourceUnlocked(name, pObject, {});
     }
 
+    // Creates unsavable cached prop in memory
     inline Bool CreateCachedPropertySet(String name, Meta::ClassInstance propInstance)
     {
         TTE_ASSERT(propInstance, "The property set cannot be null!");
@@ -1167,9 +1241,13 @@ private:
     
     std::set<String> _ErrorFiles; // reduce multi-log
     
+    std::vector<PreloadCallback> _PreloadCallbacks; // post load callbacks
+    
     // ========== INTERNAL FUNCTIONALITY
     
     Ptr<ResourceLocation> _Locate(const String& logicalName); // locate internal no lock
+    
+    void _AsyncProcessCallbacksUnlocked(CString optionalMask);
 
     Bool _CreateCachedResourceUnlocked(const String& name, Ptr<Handleable> asHandleable, Meta::ClassInstance asProp);
     

@@ -8,6 +8,7 @@
 #include <Resource/Blowfish.hpp>
 #include <Resource/Compression.hpp>
 
+#include <initializer_list>
 #include <mutex>
 
 class ResourceRegistry;
@@ -23,13 +24,13 @@ public:
     // Releases the library. Switch can be re-called after this.
     void Release();
     
-    // Switches the library configuration to a new game snapshot. All async jobs will have to complete so this can be blocking.
-    void Switch(GameSnapshot snapshot);
+    // Switches the library configuration to a new game snapshot. All async jobs will have to complete so this can be blocking. Lua procs used by Telltale Editor to load from lua for spec functionality per game (eg proc look on attach)
+    void Switch(GameSnapshot snapshot, std::initializer_list<CString> luaProcs = {});
     
 private:
     
     // Call Switch with the game to setup the context to the given game. This constructor initialised low level APIs, constant for each game.
-    ToolContext(LuaFunctionCollection PerState = {});
+    ToolContext(LuaFunctionCollection LVMAPI, LuaFunctionCollection PerWorkerAPI);
     
 public:
     
@@ -87,8 +88,18 @@ public:
     
     // creates a weak refernce to a non expired master slot
     WeakSlotRef CreateWeakSlotReference(const WeakSlotMaster& master);
+
+    // Calls a cached lua procedure (see procedural look at for example). Pushes to the stack if the return value is true.
+    Bool PushCachedLuaProcedure(const String& name);
     
 private:
+
+    struct _CachedLuaProcedure
+    {
+        String SpecialisedName;
+        U8* Binary = nullptr;
+        U32 Size = 0;
+    };
     
     Bool _Setup = false;
     U32 _LockedCallDepth = 0; // tracks number of library calls to lua scripts, ensuring we cant change context stuff from the scripts during.
@@ -98,6 +109,7 @@ private:
     
     std::mutex _DependentsLock;
     std::vector<WeakPtr<SnapshotDependentObject>> _SwitchDependents{}; // see game dependent object
+    std::map<String, _CachedLuaProcedure> _CachedSDProcs{};
     
     // WEAK POINTER
     std::mutex _WkLock;
@@ -108,7 +120,7 @@ private:
     void _IncrWeakRef(U32 slot);
     static void _AssertWeakSlot(U64 state);
     
-    friend ToolContext* CreateToolContext(LuaFunctionCollection);
+    friend ToolContext* CreateToolContext(LuaFunctionCollection,LuaFunctionCollection);
 
     friend void Meta::InitGame();
     
@@ -119,9 +131,8 @@ private:
     
 };
 
-// Creates the global tool context. Only one call per process. Optionally pass in lua API to register to each state, including
-// the library LVM and also the worker thread local states.
-ToolContext* CreateToolContext(LuaFunctionCollection PerStateAPI = {});
+// Creates the global tool context. Only one call per process. Pass in API for each lua VM: main LVM and each worker thread.
+ToolContext* CreateToolContext(LuaFunctionCollection API, LuaFunctionCollection WorkersAPI);
 
 // Call at the end of the process
 void DestroyToolContext();

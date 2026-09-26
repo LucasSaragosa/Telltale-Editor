@@ -120,6 +120,7 @@ namespace Meta {
 
             localWriter->SetPosition(0); // seek to beginning, then read all bytes.
             U8* compiledBytes = TTE_ALLOC(localWriter->GetSize(), MEMORY_TAG_SCRIPTING);
+            TTE_ATTACH_DBG_STR(compiledBytes, "LuaFunctionBin:" + fn);
 
             if (!localWriter->Read(compiledBytes, localWriter->GetSize()))
             {
@@ -162,7 +163,7 @@ namespace Meta {
             LVM.PushLString(snapshot.Vendor);
             LVM.PushInteger((I32)clz);
             LVM.CallFunction(3, 1, true);
-            if(LVM.Type(1) != LuaType::NUMBER)
+            if(LVM.Type(-1) != LuaType::NUMBER)
             {
                 TTE_ASSERT(false, "Cannot select class version at %s: the function failed or did not return version number!", collectorName.c_str());
                 return 0; // FAIL
@@ -823,6 +824,10 @@ namespace Meta {
             
             // allocate
             U8* pMemory = bNeedsFree ? TTE_ALLOC(sz, MEMORY_TAG_META_TYPE) : Alloc;
+            if(bNeedsFree)
+            {
+                TTE_ATTACH_DBG_STR(pMemory, "Instance:'" + it->second.Name + "':" + SymbolTable::FindOrHashString(name));
+            }
             
             ClassInstance inst = ClassInstance{ClassID, pMemory, [=](U8* pMem){ // use a c++11 lambda so we get a closure.
                 
@@ -1766,8 +1771,6 @@ namespace Meta {
         TTE_ASSERT(IsCallingFromMain(), "Must only be called from main thread");
         TTE_ASSERT(GetToolContext(), "Tool context not created");
         
-        InjectFullLuaAPI(GetToolContext()->GetLibraryLVM(), false);
-        
         // Setup games script
         
         ScriptManager::RunText(GetToolContext()->GetLibraryLVM(),
@@ -2407,6 +2410,7 @@ namespace Meta {
         
         // setup transience block
         _TransienceFence = TTE_NEW_PTR(std::atomic<U32>, MEMORY_TAG_TRANSIENT_FENCE, 0);
+        TTE_ATTACH_DBG_STR(_TransienceFence.get(), "Meta collection transiense fence");
     }
     
     void ClassInstanceCollection::AdvanceTransienceFenceInternal()
@@ -2508,6 +2512,7 @@ namespace Meta {
         // move transience fence
         _TransienceFence = std::move(rhs._TransienceFence);
         rhs._TransienceFence = TTE_NEW_PTR(std::atomic<U32>, MEMORY_TAG_TRANSIENT_FENCE, 0); // rhs still is valid give it a new slot
+        TTE_ATTACH_DBG_STR(rhs._TransienceFence.get(), "Meta collection transiense fence");
     }
     
     ClassInstanceCollection::ClassInstanceCollection(const ClassInstanceCollection& rhs, ParentWeakReference host)
@@ -2523,6 +2528,7 @@ namespace Meta {
         
         // setup transience block
         _TransienceFence = _TransienceFence = TTE_NEW_PTR(std::atomic<U32>, MEMORY_TAG_TRANSIENT_FENCE, 0);
+        TTE_ATTACH_DBG_STR(_TransienceFence.get(), "Meta collection transiense fence");
         // rhs transience fence stays the fence, no update
         
         if(_ColFl & _COL_IS_SARRAY)
@@ -2683,6 +2689,7 @@ namespace Meta {
         U32 newCapacity{};
         TTE_ROUND_UPOW2_U32(newCapacity, cap); // round to upper power of 2 for capacity.
         U8* pNewMemory = TTE_ALLOC(_PairSize * newCapacity, MEMORY_TAG_META_COLLECTION);
+        TTE_ATTACH_DBG_STR(pNewMemory, "Collection Memory: Capacity " + std::to_string(newCapacity));
         
         if(_Size > 0) // is previous size is zero no moving needs to be done
         {
@@ -3282,7 +3289,11 @@ Bool InstanceTransformation::PerformNormaliseAsync(Ptr<Handleable> pCommonInstan
 {
     String fn = Meta::GetInternalState().Classes.find(Instance.GetClassID())->second.NormaliserStringFn;
     auto normaliser = Meta::GetInternalState().Normalisers.find(fn);
-    TTE_ASSERT(normaliser != Meta::GetInternalState().Normalisers.end(), "Normaliser not found: '%s' for class %s", fn.c_str(), Meta::GetInternalState().Classes.find(Instance.GetClassID())->second.Name.c_str());
+    if(normaliser == Meta::GetInternalState().Normalisers.end())
+    {
+        TTE_ASSERT(false, "Normaliser not found: '%s' for class %s", fn.c_str(), Meta::GetInternalState().Classes.find(Instance.GetClassID())->second.Name.c_str());
+        return false;
+    }
     
     ScriptManager::GetGlobal(L, fn, true);
     if(L.Type(-1) != LuaType::FUNCTION)

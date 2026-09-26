@@ -4,7 +4,64 @@
 #include <Scheduler/JobScheduler.hpp>
 
 #include <algorithm>
+#include <set>
 #include <vector>
+
+struct ImVec2;
+
+class LoadingTextAnimator
+{
+public:
+    
+    inline LoadingTextAnimator(U32 ndots = 3, Float tstep = 0.7f) : _DotsCap((U16)ndots), _TimeStep(tstep) {}
+
+    inline String GetEllipses()
+    {
+        U64 now = GetTimeStamp();
+        if(GetTimeStampDifference(_LastTs, now) >= _TimeStep)
+        {
+            _LastTs = now;
+            _NDots = (_NDots + 1) % _DotsCap;
+        }
+        return String(_NDots + 1, '.');
+    }
+
+private:
+
+    U64 _LastTs = 0;
+    Float _TimeStep = 0.0f;
+    U16 _NDots = 0;
+    U16 _DotsCap = 0;
+
+};
+
+struct MenuOption
+{
+
+    String ToolBarOption;
+    String SubOption;
+    String Shortcut;
+    mutable CString OverrideSubOptionText = nullptr;
+
+    U32 ShortcutKey = 0;
+    Bool ShortcutLShift = false;
+    Bool Separator = false;
+    Bool ShortcutLControl = false;
+
+    mutable Bool Requested = false;
+
+};
+
+struct MenuOptionInterface
+{
+
+    std::vector<MenuOption> MenuOptions;
+
+    void AddMenuOptions(CString myToolBarOption);
+    Bool TestMenuOption(String toolBarOption, String subOption, String shortcut, U32 imguiKey, Bool needsLshift, Bool needsControl, Bool separaterAfter = false, CString overrideText = nullptr);
+    Bool OpenContextMenu(CString toolBarOption, ImVec2 boxMin, ImVec2 boxMax);
+
+};
 
 class ApplicationUI;
 
@@ -12,7 +69,8 @@ class ApplicationUI;
 #define UI_COMPONENT_CONSTRUCTOR(_Ty) inline _Ty(ApplicationUI& appUI) : UIComponent(appUI) {}
 #define UI_STACKABLE_CONSTRUCTOR(_Ty) inline _Ty(ApplicationUI& appUI) : UIStackable(appUI) {}
 #define SELECT_SIZE(winSize, Frac, MinPix, MaxPix) std::clamp((Frac) * (winSize), (MinPix), (MaxPix))
-#define DECL_VEC_ADDITION() inline static ImVec2 operator+(const ImVec2& lhs, const ImVec2& rhs) { return ImVec2{lhs.x + rhs.x, lhs.y + rhs.y}; }
+#define DECL_VEC_ADDITION() inline static ImVec2 operator+(const ImVec2& lhs, const ImVec2& rhs) { return ImVec2{lhs.x + rhs.x, lhs.y + rhs.y}; } \
+inline static ImVec2 operator-(const ImVec2& lhs, const ImVec2& rhs) { return ImVec2{lhs.x - rhs.x, lhs.y - rhs.y}; }
 #define DECL_VEC_DOT() inline static ImVec2 operator*(const ImVec2& lhs, const ImVec2& rhs) { return ImVec2{lhs.x * rhs.x, lhs.y * rhs.y}; }
 
 class UIComponent
@@ -35,7 +93,7 @@ public:
 
     void DrawCenteredWrappedText(const String& text, Float maxWidth, Float centerPosX, Float centerPosY, I32 maxLines, Float fontSize);
 
-    virtual void Render() = 0;
+    virtual Bool Render() = 0;
 
     ApplicationUI& GetApplication();
 
@@ -80,7 +138,7 @@ public:
     UIProjectSelect(ApplicationUI& app);
    
     // Returns true when a project is finally loaded or created
-    virtual void Render() override;
+    virtual Bool Render() override;
 
     void GetWindowSize(U32& w, U32& h); // window size for this window
 
@@ -136,7 +194,7 @@ public:
         Reset();
     }
     
-    virtual void Render() override;
+    virtual Bool Render() override;
 
     void GetWindowSize(U32& w, U32& h);
 
@@ -147,4 +205,53 @@ public:
 
     void Reset();
 
+};
+
+// Ideally if a proper engine we would have our own intrusive ref counting system, but is that really needed here.
+class UIConsole : public UIStackable
+{
+    
+    Bool _Autoscroll = true;
+    
+public:
+    
+    UIConsole(ApplicationUI& app);
+    
+    virtual Bool Render() override;
+    
+    virtual ~UIConsole();
+    
+};
+
+class UIMemoryTracker : public UIStackable
+{
+    
+    struct Tracked : Memory::TrackedAllocation
+    {
+        
+        String SourceFull;
+        
+        inline Bool operator<(const Tracked& rhs) const
+        {
+            return Timestamp < rhs.Timestamp;
+        }
+        
+    };
+    
+    std::set<Tracked> _Tracked;
+    U64 _Ts;
+    
+    U64 _AllocTotal = 0;
+    double _AllocAverageSize = 0.0;
+    Float _Pressure = 0.0f;
+    U32 _TagFilter = 999;
+    
+public:
+    
+    UIMemoryTracker(ApplicationUI& app);
+    
+    virtual Bool Render() override;
+    
+    virtual ~UIMemoryTracker();
+    
 };

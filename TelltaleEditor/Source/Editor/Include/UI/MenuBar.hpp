@@ -4,7 +4,7 @@
 
 class EditorUI;
 
-class MenuBar : public UIComponent
+class MenuBar : public UIComponent, public MenuOptionInterface
 {
 public:
     
@@ -13,6 +13,14 @@ public:
 
     MenuBar(EditorUI& ui);
 
-    virtual void Render() final override;
+    virtual Bool Render() final override;
+    
+protected:
+    
+    void _OnExportOpen(String file);
+
+    void _OnPlayAnimationSelect(String file);
+
+    void _DoPlayAnimation(std::vector<Symbol>*);
 
 };

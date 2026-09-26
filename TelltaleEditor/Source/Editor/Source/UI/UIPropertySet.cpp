@@ -7,6 +7,18 @@ DECL_VEC_ADDITION();
 
 // ========= PROPERTY SET UI IMPL
 
+// these two are needed, they arent implemented as they are overriden
+template<>
+void UIResourceEditor<>::OnExit()
+{
+}
+
+template<>
+Bool UIResourceEditor<>::RenderEditor()
+{
+    return true;
+}
+
 UIPropertySet::UIPropertySet(String propName, EditorUI& ui, String title, Meta::ClassInstance prop) :
     UIResourceEditor<>(propName, ui, title, prop), _HandleTable(true)
 {
@@ -148,6 +160,7 @@ PropGlobalAction UIPropertySet::_RenderProp(Float& currentY, Float indentX, CStr
             PropertySet::PromoteKeyToLocal(_AgentProperties, actionKey, GetApplication().GetRegistry());
         }
     }
+    PropertySet::CallAllCallbacks(prop, GetApplication().GetRegistry()); // call callbacks to update
     ImGui::PopID();
     return action;
 }
@@ -798,7 +811,7 @@ Bool UIPropertySet::RenderEditor()
                 if(ImGui::MenuItem("Add"))
                 {
                     GetApplication().SetCurrentPopup(TTE_NEW_PTR(ResourcePickerPopup, 
-                        MEMORY_TAG_EDITOR_UI, "Choose Global", "*", ALLOCATE_METHOD_CALLBACK_1(this, _AddGlobalCallback, UIPropertySet, String)), _EditorUI);
+                        MEMORY_TAG_EDITOR_UI, "Choose Global", "*.prop", ALLOCATE_METHOD_CALLBACK_1(this, _AddGlobalCallback, UIPropertySet, String)), _EditorUI);
                 }
                 ImGui::EndMenu();
             }

@@ -18,6 +18,9 @@
 
 #ifndef TTE_DISABLE_LOGGING
 
+struct FunctionBase;
+class Symbol;
+
 inline void LogConsole() {}
 
 void LogConsole(CString Msg, ...); // Defined in Context.cpp
@@ -25,6 +28,10 @@ void LogConsole(CString Msg, ...); // Defined in Context.cpp
 void ToggleLoggerCache(Bool bOnOff); // Switch on logging caching. You can call dump log after this and everthing between these calls will be put into the text file.
 
 void DumpLoggerCache(CString file); // Dumps all cached log. Pass in the absolute path
+
+void AttachLoggerCallback(Ptr<FunctionBase> pCallback); // Attachs a callback to run each log. Accepts a ptr to the Cstring NOT String.
+
+void DetachLoggerCallback(Symbol tag);
 
 // In DEBUG, simply log any messages simply to the console. Adds a newline character. This is a workaround so empty VA_ARGS works ok. If changing
 // printf, change assert to.
@@ -210,7 +217,7 @@ public:
         return *this;
     }
     
-    inline Handleable(Handleable&& rhs)
+    inline Handleable(Handleable&& rhs) noexcept
     {
         this->operator=(std::move(rhs));
     }
@@ -249,6 +256,18 @@ public:
     }
     
     inline HandleableRegistered(Ptr<ResourceRegistry> reg); // used for force instantiate the coersion functions.
+
+protected:
+
+    inline Ptr<T> GetReference()
+    {
+        return std::static_pointer_cast<T, Handleable>(shared_from_this());
+    }
+
+    inline WeakPtr<T> GetWeakReference()
+    {
+        return std::static_pointer_cast<T, Handleable>(shared_from_this());
+    }
     
 };
 
@@ -412,9 +431,11 @@ enum class CommonClass
     ANIMATION,
     SKELETON,
     PROPERTY_SET,
+    CHORE,
+    PROCEDURAL_LOOKAT,
+    // THESE MUST BE REGISTERED WITH THEIR INFO IN COMMON.HPP WHEWN ADDING MORE
     /* UPCOMING:
     TRANSITION_REMAPPER,
-    CHORE,
     DIALOG,
     PARTICLE,
     SPRITE,

@@ -2,13 +2,16 @@
 
 cd ../..
 
-if test \( $# -ne 1 \);
+if test \( $# -ne 2 \);
 then
-    echo "Usage: ./build_macos.sh config"
+    echo "Usage: ./build_macos.sh config qt_path"
     echo ""
     echo "config:"
     echo "  debug   -   build with the debug configuration"
     echo "  release -   build with the release configuration"
+    echo ""
+    echo "qt_path:"
+    echo "  Path to the Qt installation"
     echo ""
     exit 1
 fi
@@ -28,8 +31,18 @@ else
     exit 1
 fi
 
-cmake -S . -B build -G "Xcode" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+QT_PATH="$2"
 
-echo cmake --build build --config "${CONFIG}" -DCMAKE_C_COMPILER="clang" -DCMAKE_CXX_COMPILER="clang++"
+cmake -S . -B build \
+    -G "Xcode" \
+    -DCMAKE_C_COMPILER=clang \
+    -DCMAKE_CXX_COMPILER=clang++ \
+    -DCMAKE_PREFIX_PATH="$QT_PATH"
 
-cmake --build build --config "${CONFIG}" -DCMAKE_C_COMPILER="clang" -DCMAKE_CXX_COMPILER="clang++"
+echo cmake --build build --config "${CONFIG}" \
+    -DCMAKE_C_COMPILER="clang" \
+    -DCMAKE_CXX_COMPILER="clang++"
+
+cmake --build build --config "${CONFIG}" \
+    -DCMAKE_C_COMPILER="clang" \
+    -DCMAKE_CXX_COMPILER="clang++"

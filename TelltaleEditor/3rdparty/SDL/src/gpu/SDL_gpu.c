@@ -21,6 +21,8 @@
 #include "SDL_internal.h"
 #include "SDL_sysgpu.h"
 
+struct SDL_TelltaleEditorPatch _TTEPatches = {0};
+
 // FIXME: This could probably use SDL_ObjectValid
 #define CHECK_DEVICE_MAGIC(device, retval)  \
     CHECK_PARAM(device == NULL) {           \

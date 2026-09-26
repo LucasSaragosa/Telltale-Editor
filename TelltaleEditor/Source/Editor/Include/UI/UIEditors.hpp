@@ -1,9 +1,14 @@
+#pragma once
+
 #include <UI/EditorUI.hpp>
 #include <Core/Callbacks.hpp>
-#include <UI/ModuleUI.inl>
+#include <UI/ModuleUI.hpp>
+
 #include <imgui.h>
 #include <set>
 #include <map>
+
+// ======================= GENERIC REUSABLE PICKERS
 
 class AbstractListSelectionPopup : public EditorPopup
 {
@@ -101,6 +106,24 @@ public:
 
 };
 
+class PlayAnimationPopup : public AbstractListSelectionPopup
+{
+
+    Ptr<FunctionBase> CompletionCallback;
+
+protected:
+
+    virtual void _OnSelect(const String& selectedItem) override;
+
+    virtual void _RefreshItems(std::vector<String>& values) override;
+
+public:
+
+    inline PlayAnimationPopup(String title, Ptr<FunctionBase> cb) : AbstractListSelectionPopup(title, 1.0f), CompletionCallback(cb) {}
+
+};
+
+
 class MetaClassPickerPopup : public AbstractListSelectionPopup
 {
 
@@ -121,6 +144,8 @@ public:
 
 };
 
+// ======================= BASE CLASS
+
 class UIResourceEditorBase : public EditorUIComponent
 {
 protected:
@@ -140,13 +165,162 @@ public:
     virtual ~UIResourceEditorBase() = default;
     
     virtual Bool IsAlive() const = 0;
+
+    virtual Bool Expired() const = 0;
     
     virtual String GetUniqueComparator() const = 0; // eg open file name, inspecting agent. so no more than one window with this editor an be open.
     
 };
 
+// ======================= COMMON RENDER STATES
+
+template<typename CommonT>
+class UIResourceEditor;
+
+template<typename T>
+struct UIResourceEditorRuntimeData
+{
+    static_assert(false, "Specialisation required");
+};
+
+template<>
+struct UIResourceEditorRuntimeData<I32> {}; // PROP, has its own.
+
+// CHORE
+template<>
+struct UIResourceEditorRuntimeData<Chore> : MenuOptionInterface
+{
+    
+    UIResourceEditor<Chore>* EditorInstance = nullptr;
+    Ptr<U8> SubRefFence; // for resource dependent windows
+
+    Float CurrentY = 0.0f;
+    Bool IsPlaying = false;
+    Bool ExtraDataOpen = false;
+    Bool IsLooping = true; // loop when end is reached by default
+    Bool SliderGrabbed = false;
+    Bool ViewStartGrabbed = false;
+    Bool ViewEndGrabbed = false;
+    Bool SelectionBoxReady = false; // was released, select all inside it
+    Bool SelectionBoxDragging = false;
+    Bool SelectionBoxReclickAvail = false;
+    Bool ScaleMode = false;
+    
+    enum ScalingMode
+    {
+        NONE,
+        START,
+        END
+    } ActiveScaleMode = NONE;
+
+    Bool PreloadAwaiting = false;
+    Bool PreloadFinished = false;
+    LoadingTextAnimator PreloadAnimator;
+    U32 PreloadOffset = 0;
+
+    const void* OpenContextMenuGraph = nullptr; // only used for comparing. dont cast and deref the ptr.
+    
+    Float SelectionBox1X = 0.0f, SelectionBox1Y = 0.0f, SelectionBox2X = 0.0f, SelectionBox2Y = 0.0f;
+
+    Float ViewStart = 0.0f, ViewEnd = 0.0f;
+    Float CurrentTime = 0.0f;
+
+    std::set<Symbol> OpenChoreAgents;
+    String SelectedAgent;
+    I32 SelectedResourceIndex = -1;
+
+    struct SelectedBlock
+    {
+
+        Symbol Resource;
+        I32 Index;
+
+        inline Bool operator==(const SelectedBlock& rhs) const
+        {
+            return Resource == rhs.Resource && Index == rhs.Index;
+        }
+
+    };
+
+    Float LastMouseX = 0.0f;
+    Float LastMouseY;
+    std::vector<SelectedBlock> SelectedResourceBlocks; // resource name + block index into blocks array
+    std::set<const void*> SelectedKeyframeSamples; // we can use a nonowning raw ptr, its just a check and never refered unless its equal
+
+    std::set<Symbol> FailedResources;
+    std::map<Symbol, WeakPtr<MetaOperationsBucket_ChoreResource>> ResourcesCache;
+    
+    std::map<String, Symbol> PreloadingResourceToAgent;
+    
+    // CALLBACKS
+    
+    void AddAgentResourceCallback(String animFile);
+    void AddAgentResourcePostLoadCallback(const std::vector<Symbol>* resources);
+    void DoAddAgentResourcePostLoadCallback(String animFile);
+    
+    void AddAgentCallback(Meta::ClassInstance stringName);
+    void DoAddAgent(String agentName);
+
+    struct _RenderState
+    {
+        const Float RES_HEIGHT;
+        const ImVec2& wpos, & wsize;
+        Bool mouseClickedThisFrame;
+        Bool mouseReleasedThisFrame;
+        Bool mouseRightReleased;
+        Bool mouseDown;
+        Float mouseDeltaX;
+        Float mouseDeltaY;
+        Bool anySamplesClicked = false;
+        Bool anythingClicked = false;
+        ImVec2 selectionRectMin, selectionRectMax;
+        Bool usedSelectionReclick;
+        Bool allowReclickNextFrame;
+    };
+
+    struct _RenderResourceState
+    {
+        _RenderState& rs;
+        Bool leftClicked;
+        I32 runningID;
+        I32 rmResource;
+        I32 resourceIndex; // counting resource index, resIndex is the actual resource index in the array from the agent
+        I32 agentResourceIndex;
+    };
+
+    struct _RenderResourceBlockState
+    {
+        _RenderResourceState& state;
+        const ImVec2& resourceBoxMin, &resourceBoxMax;
+        ChoreResource::Block& block;
+        const Float& resourceLength;
+        const SelectedBlock* pSelectedBlock;
+        I32 currentBlockNumber;
+    };
+
+    struct _RenderGraphState
+    {
+        const Ptr<AnimationValueInterface>& pAnimatedValue;
+        const ImVec2& resourceBoxMin, & resourceBoxMax;
+    };
+
+    void RenderChoreGraphs(Chore::Resource& resource, UIResourceEditor<Chore>& editor, _RenderState& rs, I32& runningID);
+    void RenderChoreGraph(Chore::Resource& resource, UIResourceEditor<Chore>& editor, _RenderState& rs, const Ptr<AnimationValueInterface>& pAnimatedValue);
+
+    void RenderChoreGraphKeyframedFloat(_RenderState& rs, _RenderGraphState& gstate, Bool bAddNew);
+    void RenderChoreGraphKeyframedBool(_RenderState& rs, _RenderGraphState& gstate, Bool bAddNew);
+    void RenderChoreGraphKeyframedOther(_RenderState& rs, _RenderGraphState& gstate, Bool bAddNew);
+
+    void RenderMenuOptions(Bool& closing, const Ptr<Chore>& pChore);
+    void RenderChoreTimeline(const Ptr<Chore>& pChore, const Float& RES_HEIGHT, const ImVec2& wpos, const ImVec2& wsize, Bool leftClicked);
+    void RenderChoreAgent(const Ptr<Chore>& pChore, Chore::Agent& agent, _RenderState& rs, Bool leftClicked);
+    void RenderChoreResource(const Ptr<Chore>& pChore, Chore::Resource& resource, Chore::Agent& agent, _RenderResourceState& state);
+    void RenderChoreResourceBlock(const Ptr<Chore>& pChore, Chore::Resource& resource, Chore::Agent& agent, _RenderResourceBlockState& state);
+    
+};
+
 template<typename CommonT = I32>
-class UIResourceEditor : public UIResourceEditorBase
+class UIResourceEditor : public UIResourceEditorBase, protected UIResourceEditorRuntimeData<CommonT>
 {
     
     enum class Type
@@ -167,9 +341,9 @@ class UIResourceEditor : public UIResourceEditorBase
     
 protected:
     
-    inline virtual void OnExit() {}
+    virtual void OnExit();
     
-    virtual Bool RenderEditor() = 0; // true => exit
+    virtual Bool RenderEditor(); // true = exit
     
     inline Meta::ClassInstance GetMetaObject()
     {
@@ -187,6 +361,11 @@ protected:
     }
     
 public:
+
+    virtual inline Bool Expired() const override final
+    {
+        return (AggregateType == Type::COMMON && !Object) || (AggregateType == Type::WEAK_META && WeakParent.expired()) || ((AggregateType == Type::STRONG_META || AggregateType == Type::WEAK_META) && MetaObj.Expired());
+    }
     
     // FOR WEAK REF'ED
     inline UIResourceEditor(String file, EditorUI& ui, Meta::ClassInstance weakRef, Meta::ParentWeakReference p, String t)
@@ -210,15 +389,16 @@ public:
         AggregateType(Type::STRONG_META), WeakParent{}, Alive(true) {
     }
 
-    inline virtual void Render() override final
+    inline virtual Bool Render() override final
     {
-        if(Alive && ((AggregateType == Type::WEAK_META && WeakParent.expired()) || ((AggregateType == Type::STRONG_META || AggregateType == Type::WEAK_META) && MetaObj.Expired()) || RenderEditor()))
+        if(Alive && (Expired() || RenderEditor()))
         {
             OnExit();
             Alive = false;
             MetaObj = {};
             WeakParent = {};
         }
+        return false;
     }
     
     virtual inline Bool IsAlive() const override
@@ -230,6 +410,8 @@ public:
     {
         return FileName;
     }
+    
+    friend class UIResourceEditorRuntimeData<CommonT>;
     
 };
 
@@ -333,3 +515,4 @@ protected:
     Scene* _GetRawScene();
     
 };
+

@@ -367,7 +367,7 @@ void UIProjectCreate::_ReleaseJob()
     _GuessStart = 0;
 }
 
-void UIProjectCreate::Render()
+Bool UIProjectCreate::Render()
 {
     {
         int w = 0, h = 0;
@@ -855,7 +855,7 @@ void UIProjectCreate::Render()
             cursorY += GetTextLineHeightWithSpacing();
             PopStyleColor();
         }
-        else
+        else if(_MountPoints.empty())
         {
             SetCursorScreenPos(ImVec2(contentX, cursorY));
             PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
@@ -1061,8 +1061,8 @@ void UIProjectCreate::Render()
                 proj.MountDirectories.push_back(std::filesystem::path{mp});
             }
             GetApplication().GetProjectManager().CreateProject(std::move(proj));
-            GetApplication()._OnProjectLoad();
             Reset();  // Done!
+            GetApplication()._OnProjectLoad();
             GetApplication().PopUI();
         }
 
@@ -1074,6 +1074,7 @@ void UIProjectCreate::Render()
 
     End();
     PopStyleColor();
+    return false;
 }
 
 void UIProjectCreate::GetWindowSize(U32& w, U32& h)

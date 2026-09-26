@@ -79,5 +79,7 @@ private:
     
     static void _RegisterKeys(ToolContext* context);
     static std::vector<PackageKey> _PkgKeys;
+
+    friend class RegistryDirectory_PlaystationPKG;
     
 };

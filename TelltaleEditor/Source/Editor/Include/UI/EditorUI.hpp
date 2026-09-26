@@ -6,7 +6,6 @@
 #include <Common/Scene.hpp>
 #include <Runtime/SceneRenderer.hpp>
 
-#include <unordered_set>
 #include <unordered_map>
 #include <functional>
 
@@ -41,11 +40,13 @@ class EditorUI : public UIStackable
     MenuBar _MenuBar;
     std::vector<Ptr<EditorUIComponent>> _Views; // file view log view etc
     std::vector<Ptr<UIResourceEditorBase>> _TransientViews; // specific file windows
+    std::vector<Ptr<UIResourceEditorBase>> _PendingTransientViews; // to be pushed
     std::vector<LoadInfo> _AwaitingLoads;
     Scene _EditorScene;
     Ptr<ReferenceObjectInterface> _EditorSceneGuard; // replaced when editor scene changes, so we want to discard refs (its not a ptr)
     WeakPtr<SceneView> _SceneView;
     WeakPtr<InspectorView> _InspectorView;
+    String _PendingCloseView;
 
     Ptr<Scene> _AsyncInitScene;
     JobHandle _InitSceneJob;
@@ -58,14 +59,21 @@ class EditorUI : public UIStackable
     Bool _TickAsyncLoadingScene(); // return if currently loading
 
     void _OnFileClickCallbackAdapter(String rl);
+    
+    template<typename CommonT>
+    Bool _TestOpenEditor(const String& ext, const String& fileName, const String& rloc);
 
 public:
+
+    static constexpr CString PreloadMask = "EditorUI.rt"; // called every frame with registry update
 
     void UserRequestOpenFile();
 
     void DispatchEditor(String viewTitle, String rloc, std::function<Ptr<UIResourceEditorBase>(const LoadInfo&, EditorUI&, Ptr<ResourceRegistry>)> callback);
 
     void DispatchEditorImmediate(Ptr<UIResourceEditorBase> allocated);
+
+    void CloseEditor(String comparator);
 
     inline Scene& GetActiveScene()
     {
@@ -81,7 +89,7 @@ public:
 
     EditorUI(ApplicationUI& app);
 
-    virtual void Render() override;
+    virtual Bool Render() override;
 
     friend class MenuBar;
     friend class InspectorView;
@@ -156,7 +164,7 @@ public:
 
     FileView(EditorUI& ui);
 
-    virtual void Render() override;
+    virtual Bool Render() override;
 
 };
 
@@ -170,7 +178,7 @@ public:
 
     OutlineView(EditorUI& ui);
 
-    virtual void Render() override;
+    virtual Bool Render() override;
 
 };
 
@@ -208,7 +216,7 @@ public:
     InspectorView(EditorUI& ui);
     ~InspectorView();
 
-    virtual void Render() override;
+    virtual Bool Render() override;
 
     Bool RenderNode(Float sY);
 
@@ -243,7 +251,7 @@ public:
 
     ~SceneView();
 
-    virtual void Render() override;
+    virtual Bool Render() override;
 
 };
 

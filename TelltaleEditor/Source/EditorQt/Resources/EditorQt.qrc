@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file alias="icons/LogoSquare.png">../../../../Dev/Resources/Textures/LogoSquare.png</file>
+    </qresource>
+</RCC>
