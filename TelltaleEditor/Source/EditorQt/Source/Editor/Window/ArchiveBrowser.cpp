@@ -2,7 +2,7 @@
 
 #include <QGridLayout>
 
-ArchiveBrowserWindow::ArchiveBrowserWindow(QWidget* parent /*= nullptr*/)
+ArchiveBrowserWindow::ArchiveBrowserWindow(Application& app, QWidget* parent /*= nullptr*/) : _App(app)
 {
     setWindowTitle("Archive Browser");
 

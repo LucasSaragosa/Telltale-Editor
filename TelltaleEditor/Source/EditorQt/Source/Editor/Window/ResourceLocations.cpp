@@ -5,7 +5,7 @@
 
 #include <vector>
 
-ResourceLocationsWindow::ResourceLocationsWindow(QWidget* parent): QDialog(parent)
+ResourceLocationsWindow::ResourceLocationsWindow(Application& app, QWidget* parent): QDialog(parent), _App(app)
 {
     setWindowTitle("Resource Locations");
 
@@ -13,7 +13,7 @@ ResourceLocationsWindow::ResourceLocationsWindow(QWidget* parent): QDialog(paren
     auto* listWidget = new QListWidget(this);
 
     std::vector<String> allLocations{};
-    GetEditorResourceRegistry()->GetResourceLocationNames(allLocations);
+    app.GetResourceRegistry()->GetResourceLocationNames(allLocations);
 
     for (const auto& location : allLocations)
     {

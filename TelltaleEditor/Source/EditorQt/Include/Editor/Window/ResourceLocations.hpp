@@ -8,7 +8,7 @@ class ResourceLocationsWindow : public QDialog
     Q_OBJECT
 public:
 
-    explicit ResourceLocationsWindow(QWidget* parent = nullptr);
+    explicit ResourceLocationsWindow(Application& app, QWidget* parent = nullptr);
     ~ResourceLocationsWindow() override;
 
 private slots:
@@ -17,4 +17,6 @@ private slots:
 private:
 
     QLabel* _StatusLabel = nullptr;
+    Application& _App;
+
 };

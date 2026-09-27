@@ -1,48 +1,36 @@
 #pragma once
 
 #include <QDialog>
+#include <Application.hpp>
+#include <TelltaleEditor.hpp>
 
-struct GameSnapshot;
-
-class QLineEdit;
-class QComboBox;
-class QPushButton;
-class QLabel;
-class QDialogButtonBox;
+enum class SelectionStage
+{
+    SELECT_LOCATION,
+    
+};
 
 class SelectGameDialog : public QDialog 
 {
+
     Q_OBJECT
+
 public:
 
-    explicit SelectGameDialog(QWidget* parent = nullptr);
+    explicit SelectGameDialog(Application& app, QWidget* parent = nullptr);
     ~SelectGameDialog() override;
 
-    const GameSnapshot& GetSnapshot() const { return *_ActiveSnapshot; }
+    const GameSnapshot& GetSnapshot() const { return _Snapshot; }
 
 private slots:
 
-    void _BrowseForExecutable();
-    void _OnChangeExecutable(const QString& path);
-    void _OnGameChange(int index);
-    void _OnAccept();
 
 private:
 
-    void _PopulateGameCombos();
-    void _DetectGameFromPath(const QString& exePath);
-    void _UpdateAcceptState();
-    bool _ValidateInputs(QString* outError) const;
-    void _RestoreFromSettings();
+    SelectionStage _Stage = SelectionStage::SELECT_LOCATION;
 
-    QLineEdit* _ExeEditor = nullptr;
-    QPushButton* _ExeBrowse = nullptr;
-    QLabel* _StatusLabel = nullptr;
-    QDialogButtonBox* _Buttons = nullptr;
+    GameSnapshot _Snapshot;
 
-    QComboBox* _GameComboBox = nullptr;
-    QComboBox* _PlatformCombo = nullptr;
-    QComboBox* _VendorCombo = nullptr;
+    Application& _Application;
 
-    GameSnapshot* _ActiveSnapshot = nullptr;
 };
