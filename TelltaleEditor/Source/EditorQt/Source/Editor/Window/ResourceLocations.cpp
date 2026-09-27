@@ -13,7 +13,7 @@ ResourceLocationsWindow::ResourceLocationsWindow(Application& app, QWidget* pare
     auto* listWidget = new QListWidget(this);
 
     std::vector<String> allLocations{};
-    app.GetResourceRegistry()->GetResourceLocationNames(allLocations);
+    //app.GetResourceRegistry()->GetResourceLocationNames(allLocations);
 
     for (const auto& location : allLocations)
     {

@@ -25,7 +25,6 @@ SelectGameDialog::SelectGameDialog(Application& app, QWidget* parent) : QDialog(
     setWindowTitle(tr("Select Game"));
     resize(640, 320);
 
-
 }
 
 SelectGameDialog::~SelectGameDialog()
