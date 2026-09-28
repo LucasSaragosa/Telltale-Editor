@@ -46,7 +46,6 @@ private:
     Bool _Modified; // use modified version of the encryption. endian swap on index 118 and some other changes. (newer games)
     U32 _KeyLength; // length in bytes of encryption key
     U8 _Key[56];
-    
+    Cipher _Scheduled;
     static Blowfish* Instance;
-    
 };

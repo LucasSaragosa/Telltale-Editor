@@ -1,26 +1,24 @@
 #include <Resource/Blowfish.hpp>
 
-// translation unit locals
-
 Blowfish* Blowfish::Instance = nullptr;
 
 namespace 
 {
-    extern U32 bfp[18];
-    extern U32 ks0[256];
-    extern U32 ks1[256];
-    extern U32 ks2[256];
-    extern U32 ks3[256];
+    extern const U32 bfp[18];
+    extern const U32 ks0[256];
+    extern const U32 ks1[256];
+    extern const U32 ks2[256];
+    extern const U32 ks3[256];
 }
 
-// INIT AND SHUTDOWN
-
-void Blowfish::Initialise(Bool mod, const U8* k, U32 kl)
+// Initialize global Blowfish
+void Blowfish::Initialise(Bool IsModified, const U8* Key, U32 KeyLength)
 {
     Shutdown();
-    Instance = TTE_NEW(Blowfish, MEMORY_TAG_BLOWFISH, mod, k, kl);
+    Instance = TTE_NEW(Blowfish, MEMORY_TAG_BLOWFISH, IsModified, Key, KeyLength);
 }
 
+// Destroy global Blowfish
 void Blowfish::Shutdown()
 {
     if(Instance)
@@ -30,58 +28,54 @@ void Blowfish::Shutdown()
 
 // BLOWFISH CLASS (KEY MANAGEMENT)
 
-Blowfish::Blowfish(Bool m, const U8* k, U32 kl)
+Blowfish::Blowfish(Bool IsModified, const U8* Key, U32 KeyLength)
 {
-    TTE_ASSERT(kl <= 56, "Encryption key length can not be larger than 56");
-    _KeyLength = MIN(kl, 56);
-    memcpy(_Key, k, _KeyLength);
-    _Modified = m;
+    TTE_ASSERT(KeyLength <= 56, "Encryption key length can not be larger than 56.");
+    _KeyLength = MIN(KeyLength, 56);
+    memcpy(_Key, Key, _KeyLength);
+    _Modified = IsModified;
+
+    _Scheduled.Init(_Key, _KeyLength, _Modified);
 }
 
 void Blowfish::Decrypt(U8* b, U32 len)
 {
     if(_KeyLength == 0)
         return; // no encryption
-    Cipher cipher{};
-    cipher.Init(_Key, _KeyLength, _Modified);
-    cipher.Crypt(false, _Modified, b, len);
+    _Scheduled.Crypt(false, _Modified, b, len);
 }
 
 void Blowfish::Encrypt(U8* b, U32 len)
 {
     if(_KeyLength == 0)
         return; // no encryption
-    Cipher cipher{};
-    cipher.Init(_Key, _KeyLength, _Modified);
-    cipher.Crypt(true, _Modified, b, len);
+    _Scheduled.Crypt(true, _Modified, b, len);
 }
 
-// FOR INFORMATION ON HOW THIS WORKS AND THE MODIFIED ENCRYPTION USED BY TELLTALE, SEE MY GITHUB (LUCASSARAGOSA) AND THE TELLTALE TOOL PAPER.
+// For information on how Telltale's Blowfish encryption works, check out Lucas Saragosa's "Telltale Tool Paper" in Github.
 
-// IMPLEMENTATION DETAIL:
-
-void Blowfish::Cipher::Crypt(Bool IsEnc, Bool modified, U8* b, U32 len)
+void Blowfish::Cipher::Crypt(Bool IsEncrypt, Bool IsModified, U8* b, U32 len)
 {
     len >>= 3; // into blocks (/8)
     for(U32 i = 0; i < len; i++)
     {
-        _Do(IsEnc, modified, ((U32*)b)[0], ((U32*)b)[1]);
+        _Do(IsEncrypt, IsModified, ((U32*)b)[0], ((U32*)b)[1]);
         b+=8;
     }
 }
 
 // perform actual encryption of a block (left and right U32s)
-void Blowfish::Cipher::_Do(Bool enc, Bool mod, U32& left, U32& right)
+void Blowfish::Cipher::_Do(Bool IsEncrypt, Bool IsModified, U32& left, U32& right)
 {
     U32 temp{}; // for swaps
-    if(enc)
+    if(IsEncrypt)
     {
         // PERFORM ENCRYPTION OF LEFT AND RIGHT BLOCK
         for(U32 i = 0; i < 16; i++)
         {
             temp = P[i];
             
-            if(mod)
+            if(IsModified)
             {
                 switch (i) { // remap P indices
                     case 1:
@@ -127,7 +121,7 @@ void Blowfish::Cipher::_Do(Bool enc, Bool mod, U32& left, U32& right)
         {
             temp = P[i];
             
-            if(mod) // swap P indices for modified version
+            if(IsModified) // swap P indices for modified version
             {
                 switch (i) {
                     case 4:
@@ -160,7 +154,7 @@ void Blowfish::Cipher::_Do(Bool enc, Bool mod, U32& left, U32& right)
         right = temp;
         
         // UN-WHITEN
-        right ^= P[mod ? 3 : 1]; // 1 => 3 in modified do undo that here
+        right ^= P[IsModified ? 3 : 1]; // 1 => 3 in modified do undo that here
         left ^= P[0];
     }
 }
@@ -185,7 +179,7 @@ U32 Blowfish::Cipher::_DoRounds(U32 x)
     return y;
 }
 
-void Blowfish::Cipher::Init(U8* ky, U32 kl, Bool modified)
+void Blowfish::Cipher::Init(U8* Key, U32 KeyLength, Bool IsModified)
 {
     // Standard blowfish initialisation routines
     
@@ -202,7 +196,7 @@ void Blowfish::Cipher::Init(U8* ky, U32 kl, Bool modified)
         S[3][i] = ks3[i];
     }
     
-    if(modified) // difference in initialisation. index 0,118 in S box is endian reversed?
+    if(IsModified) // difference in initialisation. index 0,118 in S box is endian reversed?
     {
         S[0][118] = (((S[0][118] & 0xff000000) >> 24) | ((S[0][118] & 0x00ff0000) >> 8)
                      | ((S[0][118] & 0x0000ff00) << 8) | ((S[0][118] & 0x000000ff) << 24));
@@ -215,8 +209,8 @@ void Blowfish::Cipher::Init(U8* ky, U32 kl, Bool modified)
         U32 data = 0;
         for (U32 k = 0; k < 4; ++k)
         {
-            data = (data << 8) | ky[j];
-            if (++j >= kl)
+            data = (data << 8) | Key[j];
+            if (++j >= KeyLength)
             {
                 j = 0; // go back to start of key if less than 56 bytes
             }
@@ -252,7 +246,7 @@ void Blowfish::Cipher::Init(U8* ky, U32 kl, Bool modified)
 
 namespace {
     
-    U32 bfp[] =
+    const U32 bfp[] =
     {
         0x243f6a88, 0x85a308d3, 0x13198a2e, 0x03707344,
         0xa4093822, 0x299f31d0, 0x082efa98, 0xec4e6c89,
@@ -261,7 +255,7 @@ namespace {
         0x9216d5d9, 0x8979fb1b,
     };
     
-    U32 ks0[] =
+    const U32 ks0[] =
     {
         0xd1310ba6, 0x98dfb5ac, 0x2ffd72db, 0xd01adfb7,
         0xb8e1afed, 0x6a267e96, 0xba7c9045, 0xf12c7f99,
@@ -292,7 +286,7 @@ namespace {
         0x37d0d724, 0xd00a1248, 0xdb0fead3, 0x49f1c09b,
         0x075372c9, 0x80991b7b, 0x25d479d8, 0xf6e8def7,
         0xe3fe501a, 0xb6794c3b, 0x976ce0bd, 0x04c006ba,
-        0xc1a94fb6, 0x409f60c4, 0x5e5c9ec2, 0x196a2463, // HERE. 3RD VALUE ON THE LEFT (2ND ON RIGHT). ITS FLIPPED IN MODIFIED VERSION.
+        0xc1a94fb6, 0x409f60c4, 0x5e5c9ec2, 0x196a2463, // 3rd value on the left (0x5e5c9ec2) is flipped in the modified version.
         0x68fb6faf, 0x3e6c53b5, 0x1339b2eb, 0x3b52ec6f,
         0x6dfc511f, 0x9b30952c, 0xcc814544, 0xaf5ebd09,
         0xbee3d004, 0xde334afd, 0x660f2807, 0x192e4bb3,
@@ -329,7 +323,7 @@ namespace {
         0x53b02d5d, 0xa99f8fa1, 0x08ba4799, 0x6e85076a
     };
     
-    U32 ks1[] =
+    const U32 ks1[] =
     {
         0x4b7a70e9, 0xb5b32944, 0xdb75092e, 0xc4192623,
         0xad6ea6b0, 0x49a7df7d, 0x9cee60b8, 0x8fedb266,
@@ -397,7 +391,7 @@ namespace {
         0x153e21e7, 0x8fb03d4a, 0xe6e39f2b, 0xdb83adf7
     };
     
-    U32 ks2[] =
+    const U32 ks2[] =
     {
         0xe93d5a68, 0x948140f7, 0xf64c261c, 0x94692934,
         0x411520f7, 0x7602d4f7, 0xbcf46b2e, 0xd4a20068,
@@ -465,7 +459,7 @@ namespace {
         0xd79a3234, 0x92638212, 0x670efa8e, 0x406000e0
     };
     
-    U32 ks3[] =
+    const U32 ks3[] =
     {
         0x3a39ce37, 0xd3faf5cf, 0xabc27737, 0x5ac52d1b,
         0x5cb0679e, 0x4fa33742, 0xd3822740, 0x99bc9bbe,
