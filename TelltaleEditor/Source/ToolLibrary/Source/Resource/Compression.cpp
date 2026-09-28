@@ -93,5 +93,17 @@ namespace Compression
         return false;
     }
     
-    
+    Compression::Type Compression::Detect(const U8* data, U32 size)
+    {
+        if (size < 2)
+            return Compression::Type::END_LIBRARY;
+
+        // Zlib
+        if (data[0] == 0x78 &&
+            (data[1] == 0x9C || data[1] == 0xDA || data[1] == 0x01 || data[1] == 0x5E))
+            return Compression::Type::ZLIB_WRAPPED;
+
+        // Default: raw DEFLATE has no fixed header.
+        return Compression::Type::ZLIB;
+    }
 }

@@ -10,7 +10,8 @@ namespace Compression
     {
         ZLIB = 0,
         OODLE = 1,
-        END_LIBRARY = 2 // ie none
+        ZLIB_WRAPPED = 2, // has a header
+        END_LIBRARY = 3 // ie none
     };
     
     typedef long long (*OodleLZ_Compress)(int algo, const void *pSrc, unsigned int srcLen, void* dst, long long max, void* a, void* b, void* c);
@@ -40,5 +41,7 @@ namespace Compression
     
     // Decompresses by reading srcSize from src and writing decompressed bytes to dst. Returns if success. Uncompressed size must be known.
     Bool Decompress(U8* src, U64 srcSize, U8* dst, U64 dstSize, Type type);
-    
+
+    // Best-effort detection of a compressed block's container format.
+    Type Detect(const U8* data, U32 size);
 }
