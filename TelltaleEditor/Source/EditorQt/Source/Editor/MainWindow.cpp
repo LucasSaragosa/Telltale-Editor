@@ -51,8 +51,9 @@ void MainWindow::_SetupMenus()
 	auto* arcBrowser = windowMenu->addAction(tr("main.toolbar.window.arcbrowser"));
 	QObject::connect(arcBrowser, &QAction::triggered, this, [this]()
     {
-        ArchiveBrowserWindow w(_Application, this);
-		w.exec();
+            auto* w = new ArchiveBrowserWindow(_Application, this);
+            w->setAttribute(Qt::WA_DeleteOnClose);
+            w->show();
     });
 
     // RESOURCE LOCATIONS
