@@ -8,6 +8,7 @@
 #include <map>
 #include <memory>
 #include <vector>
+#include "Blowfish.hpp"
 
 #define MEMORY_STREAM_DEFAULT_PAGESIZE 0x1000
 
@@ -299,6 +300,71 @@ protected:
     friend class DataStreamManager;
 };
 
+// Chunked data stream for TTArchive file-data region (version >= 3, filesMode = 2).
+// Presents a continuous, seekable stream of decompressed file data by reading
+// compressed chunks on demand. Each chunk may also be Blowfish-encrypted.
+//
+// Chunks are stored one after another in the parent stream, each compressed
+// (raw deflate or zlib) and optionally encrypted. The compressed sizes are
+// given in an array; the uncompressed size of every chunk (except possibly the
+// last, which is padded with zeros) is _PageSize.
+class DataStreamTTArchiveChunked : public DataStreamDeferred
+{
+public:
+
+    // Write mode is not available - this stream is read-only.
+    virtual Bool Write(const U8* InputBuffer, U64 Nbytes) override;
+
+    // Total decompressed size = number of chunks * chunk size.
+    virtual U64 GetSize() override;
+
+    virtual ~DataStreamTTArchiveChunked();
+
+    // Detected compression mode (valid after the first chunk has been read).
+    inline Compression::Type GetCompression() const { return _Compression; }
+
+    // Whether chunks are Blowfish-encrypted.
+    inline Bool IsEncrypted() const { return _Encrypted; }
+
+protected:
+
+    // Deferred page serialisation: returns the decompressed bytes of the chunk
+    // at the given index (offset by pageOffset).
+    virtual Bool _SerialisePage(U64 index, U8* Buffer, U64 Nbytes, U64 pageOffset, Bool IsWrite) override;
+
+    // Read, decrypt and decompress the chunk at chunkIndex into _CachedPage.
+    Bool _DecodeChunk(U32 chunkIndex);
+
+    // Constructor. Parent stream must be seekable.
+    //   parent         - the .ttarch file stream
+    //   dataStart      - offset in parent where the file-data region begins
+    //   chunkSize      - uncompressed size of each chunk (normally 0x10000)
+    //   chunkSizes     - compressed size of each chunk, in order
+    //   blowfishKey    - key bytes used for per-chunk Blowfish decryption
+    //   keyLen         - length of blowfishKey
+    //   archiveVersion - .ttarch version (affects Blowfish variant)
+    //   encrypted      - whether chunks are Blowfish-encrypted
+    DataStreamTTArchiveChunked(const DataStreamRef& parent, U64 dataStart, U32 chunkSize,
+        const std::vector<U64>& chunkSizes,
+        const U8* blowfishKey, U32 keyLen, U32 archiveVersion,
+        Bool encrypted);
+
+    DataStreamRef _Prnt;                    // parent stream (the .ttarch file)
+    U64 _DataStart;                         // offset in parent where file-data region begins
+    std::vector<U64> _ChunkSizes;           // compressed size of each chunk
+    std::vector<U64> _ChunkPrefixSums;      // prefix sums: _ChunkPrefixSums[i] = sum of _ChunkSizes[0..i-1]
+    Bool _Encrypted;                        // whether chunks are Blowfish-encrypted
+    std::unique_ptr<Blowfish> _Blowfish;    // Blowfish instance for decryption (owned)
+
+    U64 _CachedPageIndex;                   // currently cached decompressed chunk index
+    U8* _CachedPage = nullptr;              // decompressed page buffer (size = chunkSize)
+    U8* _CompressedBuffer = nullptr;        // buffer for reading compressed chunk data
+    U64 _CompressedBufferSize = 0;          // size of _CompressedBuffer
+    Compression::Type _Compression;         // detected compression type (lazy)
+
+    friend class DataStreamManager;
+};
+
 /// Data stream containers are where you see the 'ZCTT/zCTT/NCTT/etc' file magic headers. These are not intrinsically related to TTARCH2 files or anything. They wrap another data stream.
 /// They allow for it to be compressed, with either zlib or oodle, as well as encrypted. If they are encrypted, it must be compressed. They compress in blocks of a set uncompressed size,
 /// pretty much always 65536 bytes. These bytes are compressed into a smaller block, and the offsets of each of these blocks as well as the number of them are stored at the beginning of the
@@ -557,6 +623,12 @@ public:
     // Creates a legacy encrypted reading stream for old meta streams. Only should be used by meta stream. Starts reading from base offset.
     // Base offset should be such that its after the magic (eg MBES) and you should pass in the correct block size and frequencies.
     DataStreamRef CreateLegacyEncryptedStream(const DataStreamRef& src, U64 baseOffset, U16 blockSize, U8 rawf, U8 blowf);
+
+    // Creates a chunked data stream reading a TTArchive compressed file-data region
+    DataStreamRef CreateTTArchiveChunkedStream(const DataStreamRef& src, U64 dataStart,
+        U32 chunkSize, const std::vector<U64>& chunkSizes,
+        const U8* blowfishKey, U32 keyLen, U32 archiveVersion,
+        Bool encrypted);
     
     // Creates a wrapper container data stream. This is used for archives (.ttarch2), shaders and meta stream sections sometimes.
     DataStreamRef CreateContainerStream(const DataStreamRef& src);

@@ -1086,6 +1086,147 @@ DataStreamLegacyEncrypted::DataStreamLegacyEncrypted(const DataStreamRef& p, U64
     memset(_Rb, 0, 0x100);
 }
 
+// ===================================================================
+// Compressed Chunk Datastream (TTArchive)
+// ===================================================================
+DataStreamTTArchiveChunked::DataStreamTTArchiveChunked(
+    const DataStreamRef& parent, U64 dataStart, U32 chunkSize,
+    const std::vector<U64>& chunkSizes,
+    const U8* blowfishKey, U32 keyLen, U32 archiveVersion,
+    Bool encrypted)
+    : DataStreamDeferred(parent ? parent->GetURL() : ResourceURL(), (U64)chunkSize)
+    , _Prnt(parent)
+    , _DataStart(dataStart)
+    , _ChunkSizes(chunkSizes)
+    , _Encrypted(encrypted)
+    , _CachedPageIndex((U64)-1)
+    , _Compression(Compression::Type::END_LIBRARY)
+{
+    TTE_ASSERT(parent, "TTArchive chunked stream requires a parent stream");
+
+    // Build prefix sums for O(1) chunk offset lookup
+    _ChunkPrefixSums.resize(_ChunkSizes.size() + 1);
+    _ChunkPrefixSums[0] = 0;
+    for (size_t i = 0; i < _ChunkSizes.size(); i++)
+        _ChunkPrefixSums[i + 1] = _ChunkPrefixSums[i] + _ChunkSizes[i];
+
+    // Allocate decompressed page buffer (always chunk size)
+    _CachedPage = TTE_ALLOC((U64)chunkSize, MEMORY_TAG_RUNTIME_BUFFER);
+
+    // Compressed buffer size: at least the largest compressed chunk seen, but
+    // bounded to at least 2x chunkSize in case a chunk compressed badly.
+    U64 maxCompressed = 0;
+    for (U64 sz : _ChunkSizes)
+    {
+        if (sz > maxCompressed)
+            maxCompressed = sz;
+    }
+    _CompressedBufferSize = MAX(maxCompressed, (U64)chunkSize * 2);
+    _CompressedBuffer = TTE_ALLOC(_CompressedBufferSize, MEMORY_TAG_RUNTIME_BUFFER);
+
+    // Create Blowfish instance if encrypted.
+    // archiveVersion >= 7 uses the "new" (modified) Blowfish variant.
+    if (_Encrypted && blowfishKey && keyLen > 0)
+        _Blowfish = std::make_unique<Blowfish>(archiveVersion >= 7, blowfishKey, keyLen);
+}
+
+DataStreamTTArchiveChunked::~DataStreamTTArchiveChunked()
+{
+    if (_CachedPage)
+        TTE_FREE(_CachedPage);
+    _CachedPage = nullptr;
+
+    if (_CompressedBuffer)
+        TTE_FREE(_CompressedBuffer);
+    _CompressedBuffer = nullptr;
+
+    _CompressedBufferSize = 0;
+    _CachedPageIndex = (U64)-1;
+    _ChunkSizes.clear();
+    _ChunkPrefixSums.clear();
+    _Blowfish.reset();
+    _Prnt.reset();
+}
+
+Bool DataStreamTTArchiveChunked::Write(const U8* InputBuffer, U64 Nbytes)
+{
+    TTE_ASSERT(false, "Cannot write to TTArchive chunked data stream");
+    return false;
+}
+
+U64 DataStreamTTArchiveChunked::GetSize()
+{
+    return _ChunkSizes.empty() ? 0 : ((U64)_ChunkSizes.size() * _PageSize);
+}
+
+Bool DataStreamTTArchiveChunked::_SerialisePage(U64 index, U8* Buffer, U64 Nbytes, U64 pageOffset, Bool IsWrite)
+{
+    TTE_ASSERT(!IsWrite, "Cannot write to TTArchive chunked data stream");
+    TTE_ASSERT(index < _ChunkSizes.size(), "TTArchive chunked stream: chunk index out of range");
+    TTE_ASSERT(pageOffset + Nbytes <= _PageSize, "TTArchive chunked stream: page read out of bounds");
+
+    if (_CachedPageIndex != index)
+    {
+        if (!_DecodeChunk((U32)index))
+            return false;
+        _CachedPageIndex = index;
+    }
+
+    memcpy(Buffer, _CachedPage + pageOffset, Nbytes);
+    return true;
+}
+
+Bool DataStreamTTArchiveChunked::_DecodeChunk(U32 chunkIndex)
+{
+    TTE_ASSERT(chunkIndex < _ChunkSizes.size(), "TTArchive chunked stream: chunk index out of range");
+
+    U64 compressedSize = _ChunkSizes[chunkIndex];
+
+    // Sanity: the compressed chunk must fit in our read buffer.
+    if (compressedSize > _CompressedBufferSize)
+    {
+        TTE_LOG("TTArchive chunked stream: chunk %u compressed size 0x%llX exceeds buffer 0x%llX",
+            chunkIndex, compressedSize, _CompressedBufferSize);
+        return false;
+    }
+
+    // Seek to the compressed chunk in the parent stream
+    U64 chunkOffset = _DataStart + _ChunkPrefixSums[chunkIndex];
+    _Prnt->SetPosition(chunkOffset);
+
+    // Read the compressed bytes
+    if (!_Prnt->Read(_CompressedBuffer, compressedSize))
+    {
+        TTE_LOG("TTArchive chunked stream: failed to read chunk %u", chunkIndex);
+        return false;
+    }
+
+    // Decrypt the compressed chunk if needed (per-chunk, not per-file)
+    if (_Encrypted && _Blowfish)
+        _Blowfish->Decrypt(_CompressedBuffer, (U32)compressedSize);
+
+    // Detect compression mode on first chunk if not yet known.
+    if (_Compression == Compression::Type::END_LIBRARY)
+    {
+        _Compression = Compression::Detect(_CompressedBuffer, (U32)compressedSize);
+        if (_Compression == Compression::Type::END_LIBRARY)
+        {
+            TTE_LOG("TTArchive chunked stream: could not detect chunk compression mode");
+            return false;
+        }
+    }
+
+    // Decompress into _CachedPage
+    if (!Compression::Decompress(_CompressedBuffer, compressedSize,
+        _CachedPage, _PageSize, _Compression))
+    {
+        TTE_LOG("TTArchive chunked stream: failed to decompress chunk %u", chunkIndex);
+        return false;
+    }
+
+    return true;
+}
+
 // ===================================================================         APPEND STREAM
 // ===================================================================
 
@@ -1358,6 +1499,18 @@ _Valid(false), _Compressed(false), _Encrypted(false), _Compression(Compression::
     }
     
     _Valid = true; // DONE
+}
+
+DataStreamRef DataStreamManager::CreateTTArchiveChunkedStream(const DataStreamRef& src, U64 dataStart,
+    U32 chunkSize, const std::vector<U64>& chunkSizes,
+    const U8* blowfishKey, U32 keyLen, U32 archiveVersion,
+    Bool encrypted)
+{
+    DataStreamTTArchiveChunked* pDS = TTE_NEW(DataStreamTTArchiveChunked, MEMORY_TAG_DATASTREAM,
+        src, dataStart, chunkSize, chunkSizes, blowfishKey, keyLen, archiveVersion, encrypted);
+    if (src)
+        TTE_ATTACH_DBG_STR(pDS, "TTArchiveChunked:" + src->GetURL().GetRawPath());
+    return DataStreamRef(pDS, &DataStreamDeleter);
 }
 
 #define CONTAINER_BULK_SIZE 16
