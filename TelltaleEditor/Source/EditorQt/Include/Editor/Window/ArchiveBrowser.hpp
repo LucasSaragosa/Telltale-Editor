@@ -90,6 +90,7 @@ private:
     std::vector<ArchiveSummaryRow> _Summary;
 
     Ptr<TTArchive> _LoadedArchive;
+    Ptr<TTArchive2> _LoadedArchive2;
     QString _LoadedFilePath;
     QString _UsedBlowfishKeyLabel;
 };

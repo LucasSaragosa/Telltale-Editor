@@ -95,12 +95,12 @@ ArchiveBrowserWindow::ArchiveBrowserWindow(Application& app, QWidget* parent)
     auto* infoGrid = new QGridLayout(infoBox);
 
     auto addInfoRow = [&](int row, const QString& label, QLabel*& outValue)
-        {
-            infoGrid->addWidget(new QLabel(label, infoBox), row, 0);
-            outValue = new QLabel(QString(), infoBox);
-            outValue->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-            infoGrid->addWidget(outValue, row, 1);
-        };
+    {
+        infoGrid->addWidget(new QLabel(label, infoBox), row, 0);
+        outValue = new QLabel(QString(), infoBox);
+        outValue->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        infoGrid->addWidget(outValue, row, 1);
+    };
 
     addInfoRow(0, tr("Name:"), _NameValue);
     addInfoRow(1, tr("Uncompressed Size:"), _UncompValue);

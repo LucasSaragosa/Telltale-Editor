@@ -36,6 +36,11 @@ public:
         return _Snapshot;
     }
 
+    inline Bool GameInitialised()
+    {
+        return _GameInit;
+    }
+
 protected:
 
 	I32 _Run(const std::vector<CommandLine::TaskArgument>& args);
@@ -45,6 +50,7 @@ private:
     TelltaleEditor* _Context = nullptr;
     Ptr<ResourceRegistry> _Registry;
     GameSnapshot _Snapshot;
+    Bool _GameInit = false;
 
     // LANGUAGE
     String _CurrentLanguage;

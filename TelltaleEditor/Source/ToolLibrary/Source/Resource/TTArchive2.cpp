@@ -9,7 +9,7 @@ Bool TTArchive2::SerialiseIn(DataStreamRef& in)
         return false; // no input
     
     // wrap it
-    DataStreamRef wrapper = DataStreamManager::GetInstance()->CreateContainerStream(in);
+    DataStreamRef wrapper = DataStreamManager::GetInstance()->CreateContainerStream(in, _OverrideKey, _OverrideKeyLength);
     in = std::move(wrapper); // replace in (wrapper keeps ref)
     
     if(in->GetSize() == 0)
@@ -216,6 +216,8 @@ Bool TTArchive2::SerialiseOut(DataStreamRef& o, ContainerParams params, JobHandl
         Container->PushStream(file.Stream); // push each file stream
     
     DataStreamRef casted = Container;
+    params.OverrideKey = _OverrideKey;
+    params.OverrideKeyLength = _OverrideKeyLength;
     Bool bResult = DataStreamManager::GetInstance()->FlushContainer(casted, Container->GetSize(), o, params, handle); // flush everything
     
     // ==========================

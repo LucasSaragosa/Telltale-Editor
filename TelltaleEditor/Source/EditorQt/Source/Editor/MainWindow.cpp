@@ -58,6 +58,7 @@ void MainWindow::_SetupMenus()
 
     // RESOURCE LOCATIONS
     auto* resourceLocs = windowMenu->addAction(tr("main.toolbar.window.resourcelocs"));
+    resourceLocs->setEnabled(false);
     QObject::connect(resourceLocs, &QAction::triggered, this, [this]()
     {
         ResourceLocationsWindow w(_Application, this);

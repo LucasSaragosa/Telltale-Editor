@@ -15,7 +15,7 @@ public:
     
     inline TTArchive2(U32 version) : _Version(version) {}
 
-    inline void SetBlowfishOverride(Meta::BlowfishKey key) { _OverrideKey = key; }
+    inline void SetBlowfishOverride(U8* overrideKey, U32 overrideKeyLength) { _OverrideKey = overrideKey; _OverrideKeyLength = overrideKeyLength; }
     
     ~TTArchive2();
     
@@ -104,7 +104,8 @@ private:
     
     U32 _Version; // 2 = TTA2, 3 = TTA3, 4 = TTA4.
     std::vector<FileInfo> _Files;
-    Meta::BlowfishKey _OverrideKey;
+    U8* _OverrideKey = nullptr;
+    U32 _OverrideKeyLength = 0;
     
     friend class RegistryDirectory_TTArchive2;
     

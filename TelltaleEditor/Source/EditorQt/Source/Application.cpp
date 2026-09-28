@@ -121,6 +121,7 @@ void Application::Switch(const GameSnapshot& snapshot)
 {
     _Registry = nullptr;
     TelltaleEditor::Get()->Switch(snapshot);
+    _GameInit = true;
     _Registry = TelltaleEditor::Get()->CreateResourceRegistry(true);
 }
 

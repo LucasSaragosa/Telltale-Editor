@@ -10,10 +10,12 @@ main.toolbar.window.resourcelocs = "Resource Locations"
 main.toolbar.scripts = "Scripts"
 main.toolbar.scene = "Scene"
 main.toolbar.props = "Properties"
-main.toolbar.chore = "Choreograph"
+main.toolbar.chore = "Choreography"
 main.toolbar.audio = "Audio"
 main.toolbar.input = "Input"
 main.toolbar.dialog = "Dialog"
 main.toolbar.rules = "Rules"
 main.toolbar.style = "Style"
 main.toolbar.vfx = "Vfx"
+
+# ARCHIVE BROWSER WINDOW
