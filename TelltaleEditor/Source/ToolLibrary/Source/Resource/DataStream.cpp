@@ -371,9 +371,9 @@ Ptr<DataStreamMemory> DataStreamManager::FindCache(const String &path)
 
 DataStreamRef DataStreamManager::CreateTempStream() { return CreateFileStream(ResourceURL(ResourceScheme::FILE, FileNewTemp())); }
 
-DataStreamRef DataStreamManager::CreateContainerStream(const DataStreamRef& src)
+DataStreamRef DataStreamManager::CreateContainerStream(const DataStreamRef& src, U8* ov, U32 ovl)
 {
-    DataStreamContainer *pDS = TTE_NEW(DataStreamContainer, MEMORY_TAG_DATASTREAM, src);
+    DataStreamContainer *pDS = TTE_NEW(DataStreamContainer, MEMORY_TAG_DATASTREAM, src, ov, ovl);
     return DataStreamRef(pDS, &DataStreamDeleter);
 }
 
@@ -1394,7 +1394,14 @@ Bool DataStreamContainer::_SerialisePage(U64 index, U8 *Buffer, U64 Nbytes, U64 
             if(_Encrypted)
             {
                 // decrypt
-                Blowfish::GetInstance()->Decrypt(_IntPage, pageSize);
+                if(_OverrideBf.IsValid())
+                {
+                    _OverrideBf.Decrypt(_IntPage, pageSize);
+                }
+                else
+                {
+                    Blowfish::GetInstance()->Decrypt(_IntPage, pageSize);
+                } 
             }
             
             // decompress
@@ -1421,8 +1428,8 @@ Bool DataStreamContainer::_SerialisePage(U64 index, U8 *Buffer, U64 Nbytes, U64 
     }
 }
 
-DataStreamContainer::DataStreamContainer(const DataStreamRef& p) : DataStreamDeferred(p->GetURL(), 0x10000), _CachedPage(nullptr),
-_Valid(false), _Compressed(false), _Encrypted(false), _Compression(Compression::ZLIB),  _CachedPageIndex(0)
+DataStreamContainer::DataStreamContainer(const DataStreamRef& p, U8* ov, U32 ovl) : DataStreamDeferred(p->GetURL(), 0x10000), _CachedPage(nullptr),
+    _Valid(false), _Compressed(false), _Encrypted(false), _Compression(Compression::ZLIB),  _CachedPageIndex(0), _OverrideBf(true, ov, ovl), _DataOffsetStart(0)
 {
     _Prnt = p; // set parent
     U32 Magic = {}; // top 3 bytes should be TTC - telltale container
@@ -1519,6 +1526,13 @@ DataStreamRef DataStreamManager::CreateTTArchiveChunkedStream(const DataStreamRe
 struct _AsyncContainerContext
 {
     
+    // information
+    U8* OverrideKey = nullptr;
+    U32 OverrideKeyLen = 0;
+    Compression::Type Compression;
+    Bool Encrypt;
+    // U32 BlockSize; we will always use 65536
+
     std::mutex Input; // input data mutex
     DataStreamRef Src;
     volatile U32 InputIndex; // current index of next page(s) to be read from src
@@ -1541,11 +1555,6 @@ struct _AsyncContainerContext
     
     U8* StashedPending[NUM_SCHEDULER_THREADS];
     
-    // information
-    Compression::Type Compression;
-    Bool Encrypt;
-    // U32 BlockSize; we will always use 65536
-    
 };
 
 struct ProcessedPageBulk
@@ -1562,7 +1571,7 @@ static void _U8Deleter(U8* F)
     TTE_FREE(F);
 }
 
-static Bool _DoPage(U8* In, U8* Out, _AsyncContainerContext* ctx, ProcessedPageBulk& blk, U32 blkIndex, U32 pgIndex)
+static Bool _DoPage(U8* In, U8* Out, _AsyncContainerContext* ctx, ProcessedPageBulk& blk, U32 blkIndex, U32 pgIndex, Blowfish* overrideBf)
 {
     
     U64 compressedSize = Compression::Compress(In, 0x10000, Out, 0x10000, ctx->Compression);
@@ -1585,8 +1594,17 @@ static Bool _DoPage(U8* In, U8* Out, _AsyncContainerContext* ctx, ProcessedPageB
     blk.CompressedSizes[pgIndex] = (U32)compressedSize;
     
     // encrypt if needed
-    if(ctx->Encrypt)
-        Blowfish::GetInstance()->Encrypt(Out, (U32)compressedSize);
+    if (ctx->Encrypt)
+    {
+        if(overrideBf->IsValid())
+        {
+            overrideBf->Encrypt(Out, (U32)compressedSize);
+        }
+        else
+        {
+            Blowfish::GetInstance()->Encrypt(Out, (U32)compressedSize);
+        }
+    }
     
     return true;
 }
@@ -1595,6 +1613,7 @@ static Bool _DoPage(U8* In, U8* Out, _AsyncContainerContext* ctx, ProcessedPageB
 static Bool _AsyncCreateContainerSlave(const JobThread& thread, void* pCtx, void* _n)
 {
     _AsyncContainerContext* ctx = (_AsyncContainerContext*)pCtx;
+    Blowfish ovrBf(true, ctx->OverrideKey, ctx->OverrideKeyLen);
     U32 myIndex = (U32)((U64)_n & 0xFFFFllu); // worker slave index. give priority to myIndex 0 as no wait for the thread to start (direct call)
     
     std::deque<ProcessedPageBulk> PendingFlushesInfo{}; // data info about what is written in the pending file
@@ -1651,7 +1670,7 @@ static Bool _AsyncCreateContainerSlave(const JobThread& thread, void* pCtx, void
             for(U32 i = 0; i < CONTAINER_BULK_SIZE; i++)
             {
                 if(!_DoPage(ctx->WorkingBuffersIn[myIndex] + i * 0x10000,
-                            ctx->WorkingBuffersOut[myIndex] + i * 0x10000, ctx, blk, blk.FirstPageIndex / CONTAINER_BULK_SIZE, i))
+                            ctx->WorkingBuffersOut[myIndex] + i * 0x10000, ctx, blk, blk.FirstPageIndex / CONTAINER_BULK_SIZE, i, &ovrBf))
                 {
                     TTE_LOG("Failed to compress container page!");
                     return false;
@@ -1777,6 +1796,7 @@ static Bool _AsyncCreateContainerSlave(const JobThread& thread, void* pCtx, void
 static Bool _AsyncCreateContainerMaster(const JobThread* pThread, void* pCtx, void* _Del)
 {
     _AsyncContainerContext* ctx = (_AsyncContainerContext*)pCtx;
+    Blowfish ovrBf(true, ctx->OverrideKey, ctx->OverrideKeyLen);
     Bool bResult = true;
     
     // 1. reserve and write offset bytes to dst to be done later
@@ -1844,7 +1864,7 @@ static Bool _AsyncCreateContainerMaster(const JobThread* pThread, void* pCtx, vo
             for(U32 i = 1; i <= RemPages; i++)
             {
                 U8* WorkingBufferOut = RemPagesTemp + (i * 0x10000);
-                if(!_DoPage(WorkingBufferIn, WorkingBufferOut, ctx, remBlk, NBulks, i - 1))
+                if(!_DoPage(WorkingBufferIn, WorkingBufferOut, ctx, remBlk, NBulks, i - 1, &ovrBf))
                 {
                     TTE_LOG("Failed to compress container page!");
                     bResult = false;
@@ -1965,6 +1985,8 @@ Bool DataStreamManager::FlushContainer(DataStreamRef& src, U64 n, DataStreamRef&
             _AsyncContainerContext ctx{};
             ctx.Compression = p.Compression;
             ctx.Src = src;
+            ctx.OverrideKey = p.OverrideKey;
+            ctx.OverrideKeyLen = p.OverrideKeyLength;
             ctx.Dst = dst;
             ctx.DstContainerStart = dstStart;
             ctx.Encrypt = p.Encrypt;
@@ -1980,6 +2002,8 @@ Bool DataStreamManager::FlushContainer(DataStreamRef& src, U64 n, DataStreamRef&
             pContext->Compression = p.Compression;
             pContext->Src = src;
             pContext->SrcSize = n;
+            pContext->OverrideKey = p.OverrideKey;
+            pContext->OverrideKeyLen = p.OverrideKeyLength;
             pContext->Dst = dst;
             pContext->DstContainerStart = dstStart;
             pContext->SrcDataStart = src->GetPosition();

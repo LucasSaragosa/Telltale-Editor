@@ -31,6 +31,11 @@ public:
 
     void Switch(const GameSnapshot& snapshot);
 
+    inline GameSnapshot GetSnapshot()
+    {
+        return _Snapshot;
+    }
+
 protected:
 
 	I32 _Run(const std::vector<CommandLine::TaskArgument>& args);

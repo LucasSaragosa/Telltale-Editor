@@ -32,10 +32,13 @@ Blowfish::Blowfish(Bool IsModified, const U8* Key, U32 KeyLength)
 {
     TTE_ASSERT(KeyLength <= 56, "Encryption key length can not be larger than 56.");
     _KeyLength = MIN(KeyLength, 56);
-    memcpy(_Key, Key, _KeyLength);
     _Modified = IsModified;
 
-    _Scheduled.Init(_Key, _KeyLength, _Modified);
+    if(Key)
+    {
+        memcpy(_Key, Key, _KeyLength);
+        _Scheduled.Init(_Key, _KeyLength, _Modified);
+    }  
 }
 
 void Blowfish::Decrypt(U8* b, U32 len)

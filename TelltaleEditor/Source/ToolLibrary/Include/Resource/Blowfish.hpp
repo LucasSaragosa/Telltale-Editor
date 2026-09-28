@@ -15,6 +15,11 @@ public:
     {
         return Instance;
     }
+
+    inline Bool IsValid()
+    {
+        return _KeyLength > 0;
+    }
     
     // Encrypt the given buffer. THREAD SAFE between game Switches (job scheduler is reset)
     void Encrypt(U8* Buffer, U32 BufferLength);

@@ -254,6 +254,8 @@ public:
     
     inline virtual U64 GetSize() override { return _Size; }
     
+    inline virtual U64 GetSubStreamOffset() { return _BaseOff;  }
+    
     virtual ~DataStreamSubStream();
     
 protected:
@@ -412,11 +414,12 @@ protected:
     virtual Bool _SerialisePage(U64 index, U8 *Buffer, U64 Nbytes, U64 pageOffset, Bool IsWrite) override;
     
     // Parent stream must be seekable.
-    DataStreamContainer(const DataStreamRef &parent);
+    DataStreamContainer(const DataStreamRef& parent, U8* overrideKey = nullptr, U32 overrideKeyLen = 0);
     
     DataStreamRef _Prnt; // parent stream we are reading from
     
     Compression::Type _Compression; // compression type
+    Blowfish _OverrideBf;
     Bool _Encrypted; // is encrypted
     Bool _Compressed; // is compressed
     Bool _Valid; // is valid
@@ -598,6 +601,7 @@ struct ContainerParams
 {
     Bool Encrypt = false; // if true, compression should be set (else default zlib is used)
     Compression::Type Compression = Compression::Type::END_LIBRARY;
+    U8* OverrideKey = nullptr; U32 OverrideKeyLength = 0;
 };
 
 // This manages lifetimes of data streams, finding URLs, opening files, and everything related to sources and destinations of byte streams.
@@ -631,7 +635,8 @@ public:
         Bool encrypted);
     
     // Creates a wrapper container data stream. This is used for archives (.ttarch2), shaders and meta stream sections sometimes.
-    DataStreamRef CreateContainerStream(const DataStreamRef& src);
+    // Optionally pass in the override key to use over the current game key.
+    DataStreamRef CreateContainerStream(const DataStreamRef& src, U8* overrideKey = nullptr, U32 overrideKeylength = 0);
     
     // Creates a cached stream, such that all of src lies within memory, speeding up reads for smaller files. If src is already
     // a cached stream (DataStreamBuffer/Memory) then it return src

@@ -14,6 +14,8 @@ public:
     static constexpr CString Extension = ".ttarch2";
     
     inline TTArchive2(U32 version) : _Version(version) {}
+
+    inline void SetBlowfishOverride(Meta::BlowfishKey key) { _OverrideKey = key; }
     
     ~TTArchive2();
     
@@ -102,6 +104,7 @@ private:
     
     U32 _Version; // 2 = TTA2, 3 = TTA3, 4 = TTA4.
     std::vector<FileInfo> _Files;
+    Meta::BlowfishKey _OverrideKey;
     
     friend class RegistryDirectory_TTArchive2;
     

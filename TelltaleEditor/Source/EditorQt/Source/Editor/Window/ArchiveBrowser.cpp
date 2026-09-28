@@ -133,8 +133,7 @@ ArchiveBrowserWindow::ArchiveBrowserWindow(Application& app, QWidget* parent)
 
     _MainTree = new QTreeWidget(rightCol);
     _MainTree->setColumnCount(5);
-    _MainTree->setHeaderLabels({ tr("Name"), tr("Type"),
-                                 tr("Compressed"), tr("Uncompressed"), tr("Position") });
+    _MainTree->setHeaderLabels({ tr("Name"), tr("Type"), tr("Compressed"), tr("Uncompressed"), tr("Position") });
     _MainTree->setRootIsDecorated(false);
     _MainTree->setAlternatingRowColors(true);
     _MainTree->setSortingEnabled(true);
@@ -170,21 +169,18 @@ ArchiveBrowserWindow::~ArchiveBrowserWindow() = default;
 
 void ArchiveBrowserWindow::OnOpenArchive()
 {
-    const QString path = QFileDialog::getOpenFileName(
-        this, tr("Select Telltale Archive"), QString(),
-        tr("Telltale Archives (*.ttarch *.ttarch2);;All Files (*)"));
+    const QString path = QFileDialog::getOpenFileName(this, tr("Select Telltale Archive"), QString(), tr("Telltale Archives (*.ttarch *.ttarch2);;All Files (*)"));
 
     if (path.isEmpty())
         return;
 
     QString keyLabel;
     QString error;
-    std::unique_ptr<TTArchive> archive = TryLoadArchive(path, keyLabel, error);
+    Ptr<TTArchive> archive = TryLoadArchive(path, keyLabel, error);
 
     if (!archive)
     {
-        QMessageBox::warning(this, tr("Load Failed"),
-            tr("Could not load archive.\nLast error: %1").arg(error));
+        QMessageBox::warning(this, tr("Load Failed"), tr("Could not load archive.\nLast error: %1").arg(error));
         return;
     }
 
@@ -203,13 +199,10 @@ void ArchiveBrowserWindow::OnOpenArchive()
 // Key discovery
 // ===================================================================
 
-std::unique_ptr<TTArchive> ArchiveBrowserWindow::TryLoadArchive(const QString& filePath,
-    QString& outKeyLabel,
-    QString& outError)
+Ptr<TTArchive> ArchiveBrowserWindow::TryLoadArchive(const QString& filePath, QString& outKeyLabel, QString& outError)
 {
     // Open the file once and wrap it in a DataStreamRef.
-    DataStreamRef in = DataStreamManager::GetInstance()->CreateFileStream(
-        ResourceURL(ResourceScheme::FILE, filePath.toStdString()));
+    DataStreamRef in = DataStreamManager::GetInstance()->CreateFileStream(ResourceURL(ResourceScheme::FILE, filePath.toStdString()));
 
     if (!in)
     {
@@ -233,7 +226,7 @@ std::unique_ptr<TTArchive> ArchiveBrowserWindow::TryLoadArchive(const QString& f
         // Master key.
         if (game.MasterKey.BfKeyLength > 0)
         {
-            bool dup = false;
+            Bool dup = false;
             for (const auto& c : candidates)
             {
                 if (c.Key.BfKeyLength == game.MasterKey.BfKeyLength &&
@@ -253,7 +246,7 @@ std::unique_ptr<TTArchive> ArchiveBrowserWindow::TryLoadArchive(const QString& f
             if (k.BfKeyLength == 0)
                 continue;
 
-            bool dup = false;
+            Bool dup = false;
             for (const auto& c : candidates)
             {
                 if (c.Key.BfKeyLength == k.BfKeyLength &&
@@ -272,7 +265,7 @@ std::unique_ptr<TTArchive> ArchiveBrowserWindow::TryLoadArchive(const QString& f
 
     // Now try each one. Each attempt re-uses the same TTArchive instance
     // (Reset() between tries) so we don't allocate a new parser for every key.
-    std::unique_ptr<TTArchive> archive = std::make_unique<TTArchive>(0);
+    Ptr<TTArchive> archive = TTE_NEW_PTR(TTArchive, MEMORY_TAG_EDITOR_UI, 0);
     QString lastErr;
 
     for (size_t i = 0; i < candidates.size(); i++)
@@ -301,12 +294,6 @@ void ArchiveBrowserWindow::BuildEntries(TTArchive& archive)
     std::set<String> names;
     archive.GetFiles(names);
 
-    // Grab chunk info for the compressed-size estimate. TTArchive exposes
-    // _Files privately; you may want to add a public accessor. Until then,
-    // we just use uncompressed size as the compressed size (best effort).
-    //
-    // If you expose: archive.GetChunkBlockSizes() and archive.GetChunkSize(),
-    // pass them to EstimateCompressedSize below.
     const std::vector<U64> chunkSizes;    // empty for now
     const U64 windowSize = 0x10000;
 
@@ -315,12 +302,18 @@ void ArchiveBrowserWindow::BuildEntries(TTArchive& archive)
         DataStreamRef stream = archive.Find(Symbol(name), nullptr);
         const quint64 size = stream ? stream->GetSize() : 0;
 
+        Ptr<DataStreamSubStream> asSub = std::dynamic_pointer_cast<DataStreamSubStream, DataStream>(stream);
+
         ArchiveEntryRow row;
         row.Name = QString::fromStdString(name);
         row.Type = ExtensionOf(row.Name);
         row.UncompressedSize = qint64(size);
         row.CompressedSize = qint64(EstimateCompressedSize(0, size, chunkSizes, windowSize));
-        row.Offset = 0; // available if you expose per-entry offsets
+        if (asSub != nullptr)
+        {
+            row.Offset = asSub->GetSubStreamOffset();
+        }
+        
         row.BlowfishKeyLabel = _UsedBlowfishKeyLabel;
         _AllEntries.push_back(std::move(row));
     }
@@ -360,7 +353,7 @@ void ArchiveBrowserWindow::FilterEntries(const QString& filter)
         item->setText(1, e.Type);
         item->setText(2, FormatSize(e.CompressedSize));
         item->setText(3, FormatSize(e.UncompressedSize));
-        item->setText(4, QString::number(e.Offset));
+        item->setData(4, Qt::DisplayRole, QVariant(e.Offset));
         item->setTextAlignment(2, Qt::AlignRight | Qt::AlignVCenter);
         item->setTextAlignment(3, Qt::AlignRight | Qt::AlignVCenter);
         item->setTextAlignment(4, Qt::AlignRight | Qt::AlignVCenter);
@@ -369,7 +362,7 @@ void ArchiveBrowserWindow::FilterEntries(const QString& filter)
 
     for (int c = 0; c < _MainTree->columnCount(); c++)
         _MainTree->resizeColumnToContents(c);
-
+    Meta::GetInternalState().GetActiveGame().GetEncryptionKey(_App.GetSnapshot());
     UpdateSummary();
 }
 
@@ -456,9 +449,7 @@ void ArchiveBrowserWindow::UpdateInfoPanel(TTArchive& archive)
 // Compressed size estimate
 // ===================================================================
 
-quint64 ArchiveBrowserWindow::EstimateCompressedSize(quint64 offset, quint64 size,
-    const std::vector<U64>& chunkBlockSizes,
-    quint64 windowSize) const
+U64 ArchiveBrowserWindow::EstimateCompressedSize(U64 offset, U64 size, const std::vector<U64>& chunkBlockSizes, U64 windowSize) const
 {
     if (chunkBlockSizes.empty())
         return size; // no compression
@@ -466,8 +457,8 @@ quint64 ArchiveBrowserWindow::EstimateCompressedSize(quint64 offset, quint64 siz
     if (size == 0)
         return 0;
 
-    const quint64 fileStart = offset;         // in uncompressed payload space
-    const quint64 fileEnd = offset + size;  // exclusive
+    const U64 fileStart = offset; // in uncompressed payload space
+    const U64 fileEnd = offset + size;  // exclusive
 
     const int startChunk = int(fileStart / windowSize);
     const int endChunk = int((fileEnd - 1) / windowSize);
@@ -478,16 +469,16 @@ quint64 ArchiveBrowserWindow::EstimateCompressedSize(quint64 offset, quint64 siz
     double total = 0.0;
     for (int i = startChunk; i <= endChunk; i++)
     {
-        const quint64 chunkStart = quint64(i) * windowSize;
-        const quint64 chunkEnd = quint64(i + 1) * windowSize;
+        const U64 chunkStart = quint64(i) * windowSize;
+        const U64 chunkEnd = quint64(i + 1) * windowSize;
 
-        const quint64 overlapStart = std::max(fileStart, chunkStart);
-        const quint64 overlapEnd = std::min(fileEnd, chunkEnd);
-        const quint64 overlapSize = overlapEnd - overlapStart;
+        const U64 overlapStart = MAX(fileStart, chunkStart);
+        const U64 overlapEnd = MIN(fileEnd, chunkEnd);
+        const U64 overlapSize = overlapEnd - overlapStart;
 
         const double ratio = double(overlapSize) / double(windowSize);
         total += ratio * double(chunkBlockSizes[i]);
     }
 
-    return quint64(std::ceil(total));
+    return U64(std::ceil(total));
 }
