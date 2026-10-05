@@ -28,18 +28,6 @@ Example and default Windows Qt installation for release: cmake -B build -S . -DC
 Note that this project is mainly tested on Windows and MacOS. Linux is supported but may have bugs so please report them.
 Zenity must be installed before using Telltale Editor on Linux! If not file dialogs won't open!
 
-## Authors
+### Further Information
 
-This project was made possible by lots of work done by various people. 
-
-All C++ and C implementation, and Lua Classes:
-#### [Lucas Saragosa](https://github.com/LucasSaragosa)
-
-Lua classes and CMake build system as well as UI development:
-#### [Ivan ('DarkShadow')](https://github.com/iMrShadow)
-
-Initial testing help and github workflows
-#### [Asil ('Proton')](https://github.com/asilz)
-
-Support and future help
-#### [David M.](https://github.com/frostbone25)
+We are currently porting from ImGui to Qt! @iMrShadow is helping build the UI for various file editors and engine functionality.
